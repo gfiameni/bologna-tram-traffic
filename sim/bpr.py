@@ -50,8 +50,8 @@ def _piece(piece, car_h, bus_h, bike_h, scenario):
     }
 
 
-def run(corridor, scenario, shift, headway):
-    car_h, bus_h, bike_h = demand(corridor, scenario, shift)
+def run(corridor, scenario, shift, headway, hour=8):
+    car_h, bus_h, bike_h = demand(corridor, scenario, shift, hour)
     stats = {name: _piece(corridor.piece(name), car_h if name not in ("fiera", "pilastro") else car_h * (0.56 if name == "fiera" else 0.44), bus_h, bike_h, scenario) for name in corridor.pieces}
     # Spur inflows are the branch share of the upstream flow.
     for name, share in (("fiera", 0.56), ("pilastro", 0.44)):
@@ -71,4 +71,5 @@ def run(corridor, scenario, shift, headway):
         stats["trunk"]["car_out"], stats["trunk"]["bike_out"],
         transit_fiera, transit_pilastro, speeds, bike_speeds,
         car_fiera, car_pilastro, bike_trip(stats, "fiera", "bike_min", corridor),
+        hour=hour,
     )

@@ -132,10 +132,10 @@ def _piece(piece, car_h, bus_h, bike_h, scenario):
     }
 
 
-def run(corridor, scenario, shift, headway):
+def run(corridor, scenario, shift, headway, hour=8):
     if _WEIGHTS is None:
         train(corridor)
-    car_h, bus_h, bike_h = demand(corridor, scenario, shift)
+    car_h, bus_h, bike_h = demand(corridor, scenario, shift, hour)
     stats = {}
     upstream = car_h
     for name in ("trunk", "bypass", "city"):
@@ -158,6 +158,7 @@ def run(corridor, scenario, shift, headway):
         chain_time(stats, "fiera", "car_min"),
         chain_time(stats, "pilastro", "car_min"),
         bike_trip(stats, "fiera", "bike_min", corridor),
+        hour=hour,
     )
 
 

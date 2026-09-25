@@ -10,13 +10,13 @@ MODELS = {
 }
 
 
-def run(name, corridor, scenario, shift, headway, use_warp=False):
+def run(name, corridor, scenario, shift, headway, use_warp=False, hour=8):
     if name == "bpr":
-        return bpr.run(corridor, scenario, shift, headway)
+        return bpr.run(corridor, scenario, shift, headway, hour=hour)
     if name == "ctm":
-        return ctm.run(corridor, scenario, shift, headway, use_warp=use_warp)
+        return ctm.run(corridor, scenario, shift, headway, use_warp=use_warp, hour=hour)
     if name == "idm":
-        return idm.run(corridor, scenario, shift, headway, use_warp=use_warp)
+        return idm.run(corridor, scenario, shift, headway, use_warp=use_warp, hour=hour)
     if name == "surrogate":
-        return surrogate.run(corridor, scenario, shift, headway)
+        return surrogate.run(corridor, scenario, shift, headway, hour=hour)
     raise KeyError(name)

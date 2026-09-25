@@ -172,8 +172,8 @@ def _piece(piece, car_h, bus_h, bike_h, scenario, use_warp):
     }
 
 
-def run(corridor, scenario, shift, headway, use_warp=False):
-    car_h, bus_h, bike_h = demand(corridor, scenario, shift)
+def run(corridor, scenario, shift, headway, use_warp=False, hour=8):
+    car_h, bus_h, bike_h = demand(corridor, scenario, shift, hour)
     stats = {}
     upstream = car_h
     bike_up = bike_h
@@ -202,4 +202,5 @@ def run(corridor, scenario, shift, headway, use_warp=False):
         chain_time(stats, "fiera", "car_min"),
         chain_time(stats, "pilastro", "car_min"),
         bike_trip(stats, "fiera", "bike_min", corridor),
+        hour=hour,
     )

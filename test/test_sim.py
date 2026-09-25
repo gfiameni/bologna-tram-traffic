@@ -63,6 +63,8 @@ def main():
 
     bpr_before = run("bpr", corridor, "before", 0.0, 4.5)
     bpr_after = run("bpr", corridor, "after", 0.0, 4.5)
+    evening = run("bpr", corridor, "before", 0.0, 4.5, hour=21)
+    check("21:00 has lighter car demand than the morning peak", evening["carFlow"] < bpr_before["carFlow"] * 0.7)
     check("volume-delay slows Via Emilia when a lane goes", bpr_after["viaEmiliaKmh"] < bpr_before["viaEmiliaKmh"])
 
     weights = train(corridor)

@@ -1,4 +1,4 @@
-"""Warp kernels. On an NVIDIA GPU these compile to CUDA; on this Mac, to CPU."""
+"""Warp kernels. They compile to CUDA when Warp is built with the CUDA toolkit."""
 
 import numpy as np
 

@@ -34,6 +34,7 @@ class Corridor:
     passengers_per_bus: float
     notes: dict
     signal_timing: str
+    hours: list = field(default_factory=list)
 
     def piece(self, name):
         return self.pieces[name]
@@ -61,6 +62,17 @@ def load(root=ROOT):
     for stop in network["stops"]:
         tram_stops[stop["branch"]] = tram_stops.get(stop["branch"], 0) + 1
     centre = max(0.0, tram_length["trunk"] - network["screenline"]["tramTrunkM"] - pieces["city"].length)
+    hours_path = root / "data" / "hours.json"
+    if hours_path.exists():
+        hours = json.loads(hours_path.read_text())["slots"]
+    else:
+        hours = [{
+            "hour": 8,
+            "label": "08:00 · morning peak",
+            "cars": raw["carPerHour"],
+            "buses": raw["busPerHour"],
+            "bikes": raw["bikePerHour"],
+        }]
     return Corridor(
         pieces=pieces,
         tram_length=tram_length,
@@ -74,4 +86,5 @@ def load(root=ROOT):
         passengers_per_bus=raw.get("passengersPerBus", 45),
         notes=raw.get("notes") or {},
         signal_timing=raw.get("signalTiming", ""),
+        hours=hours,
     )

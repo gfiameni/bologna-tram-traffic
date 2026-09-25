@@ -21,11 +21,24 @@ class Result:
     vehicles_per_hour: float
 
 
-def demand(corridor, scenario, shift):
+def hour_row(corridor, hour):
+    table = {int(item["hour"]): item for item in corridor.hours}
+    if int(hour) in table:
+        return table[int(hour)]
+    return {
+        "hour": 8,
+        "cars": corridor.car_per_hour,
+        "buses": corridor.bus_per_hour,
+        "bikes": corridor.bike_per_hour,
+    }
+
+
+def demand(corridor, scenario, shift, hour=8):
+    base = hour_row(corridor, hour)
     moved = shift if scenario == "after" else 0.0
-    cars = corridor.car_per_hour * (1.0 - moved)
-    buses = 0.0 if scenario == "after" else corridor.bus_per_hour
-    return cars, buses, corridor.bike_per_hour
+    cars = base["cars"] * (1.0 - moved)
+    buses = 0.0 if scenario == "after" else base["buses"]
+    return cars, buses, base["bikes"]
 
 
 def chain_time(stats, branch, key):
@@ -67,17 +80,18 @@ def pack(result):
     }
 
 
-def people_and_transit(corridor, scenario, shift, headway, trunk_cars, trunk_bikes, transit_fiera, transit_pilastro, speeds, bike_speeds, car_fiera, car_pilastro, bike_fiera):
+def people_and_transit(corridor, scenario, shift, headway, trunk_cars, trunk_bikes, transit_fiera, transit_pilastro, speeds, bike_speeds, car_fiera, car_pilastro, bike_fiera, hour=8):
+    base = hour_row(corridor, hour)
     if scenario == "after":
-        market = corridor.bus_per_hour * corridor.passengers_per_bus + corridor.car_per_hour * shift * corridor.occupancy
+        market = base["buses"] * corridor.passengers_per_bus + base["cars"] * shift * corridor.occupancy
         capacity = (60.0 / headway) * 220.0
         transit = "tram"
         vehicles = 60.0 / headway
     else:
-        market = corridor.bus_per_hour * corridor.passengers_per_bus
-        capacity = corridor.bus_per_hour * 90.0
+        market = base["buses"] * corridor.passengers_per_bus
+        capacity = base["buses"] * 90.0
         transit = "bus"
-        vehicles = corridor.bus_per_hour
+        vehicles = base["buses"]
     carried = min(market, capacity)
     return pack(Result(
         car_fiera=car_fiera,

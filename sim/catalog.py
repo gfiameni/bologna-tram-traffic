@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from sim.device import describe
+from sim.engine import hour_row
 from sim.models import MODELS, run
 from sim.supply import ROOT, load
 from sim.surrogate import save, train
@@ -12,15 +13,16 @@ SHIFTS = (0.0, 0.15, 0.25, 0.35, 0.5)
 HEADWAYS = (3.0, 4.5, 6.0, 8.0)
 
 
-def case_key(name, scenario, shift, headway):
-    return f"{name}|{scenario}|{shift:.2f}|{headway:.1f}"
+def case_key(name, scenario, shift, headway, hour):
+    return f"{name}|{scenario}|{shift:.2f}|{headway:.1f}|{int(hour):02d}"
 
 
-def with_headway(result, corridor, scenario, shift, headway):
+def with_headway(result, corridor, scenario, shift, headway, hour):
     copied = json.loads(json.dumps(result))
     if scenario != "after":
         return copied
-    market = corridor.bus_per_hour * corridor.passengers_per_bus + corridor.car_per_hour * shift * corridor.occupancy
+    base = hour_row(corridor, hour)
+    market = base["buses"] * corridor.passengers_per_bus + base["cars"] * shift * corridor.occupancy
     capacity = (60.0 / headway) * 220.0
     carried = min(market, capacity)
     copied["peoplePerHour"] = copied["carFlow"] * corridor.occupancy + copied["bikeFlow"] + carried
@@ -34,14 +36,16 @@ def build(root=ROOT):
     weights = train(corridor)
     save(weights, root / "data" / "surrogate.json")
     cases = {}
+    hours = [int(item["hour"]) for item in corridor.hours]
     for name in MODELS:
-        for scenario in ("before", "after"):
-            for shift in SHIFTS:
-                base = run(name, corridor, scenario, shift, 4.5)
-                for headway in HEADWAYS:
-                    cases[case_key(name, scenario, shift, headway)] = with_headway(
-                        base, corridor, scenario, shift, headway
-                    )
+        for hour in hours:
+            for scenario in ("before", "after"):
+                for shift in SHIFTS:
+                    base = run(name, corridor, scenario, shift, 4.5, hour=hour)
+                    for headway in HEADWAYS:
+                        cases[case_key(name, scenario, shift, headway, hour)] = with_headway(
+                            base, corridor, scenario, shift, headway, hour
+                        )
     catalog = {
         "models": [
             {"id": "bpr", "label": "Volume-delay"},
@@ -52,6 +56,8 @@ def build(root=ROOT):
         "defaultModel": "ctm",
         "shifts": list(SHIFTS),
         "headways": list(HEADWAYS),
+        "hours": corridor.hours,
+        "defaultHour": 8,
         "device": describe(),
         "surrogate": {
             "holdoutMinutesMae": weights["holdoutMinutesMae"],

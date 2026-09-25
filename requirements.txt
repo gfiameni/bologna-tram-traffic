@@ -1,2 +1,3 @@
 numpy>=1.26
+# DGX Spark needs the CUDA 13 aarch64 wheel, not this PyPI build. See README.
 warp-lang>=1.6

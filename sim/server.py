@@ -44,9 +44,10 @@ def main():
             model = body.get("model", "ctm")
             shift = float(body.get("shift", 0.25))
             headway = float(body.get("headway", 4.5))
+            hour = int(body.get("hour", 8))
             try:
-                before = run(model, corridor, "before", shift, headway, use_warp=device["cuda"])
-                after = run(model, corridor, "after", shift, headway, use_warp=device["cuda"])
+                before = run(model, corridor, "before", shift, headway, use_warp=device["cuda"], hour=hour)
+                after = run(model, corridor, "after", shift, headway, use_warp=device["cuda"], hour=hour)
             except KeyError:
                 self._send(400, {"error": "unknown model"})
                 return

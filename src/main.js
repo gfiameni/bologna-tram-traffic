@@ -12,6 +12,7 @@ const state = {
   playing: true,
   timeScale: 40,
   model: "ctm",
+  hour: 8,
   params: { ...DEFAULTS },
 };
 
@@ -23,9 +24,15 @@ try {
   catalog = null;
 }
 if (catalog?.defaultModel) state.model = catalog.defaultModel;
+if (catalog?.defaultHour) state.hour = catalog.defaultHour;
 
-function caseKey(model, scenario, shift, headway) {
-  return `${model}|${scenario}|${shift.toFixed(2)}|${headway.toFixed(1)}`;
+function caseKey(model, scenario, shift, headway, hour) {
+  return `${model}|${scenario}|${shift.toFixed(2)}|${headway.toFixed(1)}|${String(hour).padStart(2, "0")}`;
+}
+
+function hourLabel(hour) {
+  const slot = catalog?.hours?.find((item) => item.hour === hour);
+  return slot?.label || `${String(hour).padStart(2, "0")}:00`;
 }
 
 function nearest(value, options) {
@@ -36,8 +43,8 @@ function pair() {
   if (!catalog) return evaluate(geo, state.params);
   const shift = nearest(state.params.modalShift, catalog.shifts);
   const headway = nearest(state.params.tramHeadwayMin, catalog.headways);
-  const before = catalog.cases[caseKey(state.model, "before", shift, headway)];
-  const after = catalog.cases[caseKey(state.model, "after", shift, headway)];
+  const before = catalog.cases[caseKey(state.model, "before", shift, headway, state.hour)];
+  const after = catalog.cases[caseKey(state.model, "after", shift, headway, state.hour)];
   if (!before || !after) return evaluate(geo, state.params);
   const exact = Math.abs(shift - state.params.modalShift) < 0.001 && Math.abs(headway - state.params.tramHeadwayMin) < 0.01;
   return { before, after, snapped: !exact, shift, headway };
@@ -172,9 +179,9 @@ function assumptionText() {
     supply.notes.buses,
     supply.signalTiming,
     `The neural surrogate is a 12-neuron network trained on cell-transmission runs of this corridor. Its holdout error is ${catalog.surrogate.holdoutMinutesMae} minutes per street.`,
-    device.cuda
+    (reportedCuda ?? device.cuda)
       ? "Cell transmission and car following are Warp kernels, running on CUDA."
-      : "Cell transmission and car following are Warp kernels. On this Mac the page uses the NumPy copy of those updates, which the tests match to Warp. There is no CUDA device here; the model server runs the kernels on CUDA when an NVIDIA GPU is present.",
+      : "Cell transmission and car following are Warp kernels. This page is using the NumPy copy of those updates, which the tests match to Warp. The model server runs the kernels on CUDA when Warp reports a GPU.",
     "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues. Bicycles stay on the corridor, including through the centre. Passenger service is expected in 2027. This is a scenario, not a forecast from the Comune.",
   ].join(" ");
 }
@@ -183,6 +190,7 @@ function paintPanel(options = {}) {
   if (!options.keep) metrics = pair();
   const before = metrics.before;
   const after = metrics.after;
+  document.getElementById("when").textContent = `Bologna · ${hourLabel(state.hour)}`;
   document.getElementById("assumptions").textContent = assumptionText();
   const snap = document.getElementById("snap");
   if (metrics.snapped) {
@@ -219,6 +227,7 @@ function paintPanel(options = {}) {
   document.getElementById("show-after").setAttribute("aria-pressed", String(state.scenario === "after"));
 }
 
+let reportedCuda = null;
 let requestToken = 0;
 async function refreshLive() {
   const token = ++requestToken;
@@ -230,12 +239,14 @@ async function refreshLive() {
         model: state.model,
         shift: state.params.modalShift,
         headway: state.params.tramHeadwayMin,
+        hour: state.hour,
       }),
       signal: AbortSignal.timeout(20000),
     });
     if (!response.ok || token !== requestToken) return;
     const data = await response.json();
     if (!data.before || !data.after || token !== requestToken) return;
+    reportedCuda = Boolean(data.cuda);
     metrics = { before: data.before, after: data.after, live: true, cuda: data.cuda, snapped: false };
     paintPanel({ keep: true });
     paintRoutes();
@@ -243,6 +254,23 @@ async function refreshLive() {
     // The saved catalog stays on screen when the model server is not running.
   }
 }
+
+const hourSelect = document.getElementById("hour");
+for (const slot of catalog?.hours || [{ hour: 8, label: "08:00 · morning peak" }]) {
+  const option = document.createElement("option");
+  option.value = String(slot.hour);
+  option.textContent = slot.label;
+  hourSelect.append(option);
+}
+hourSelect.value = String(state.hour);
+hourSelect.addEventListener("change", () => {
+  state.hour = Number(hourSelect.value);
+  document.getElementById("predict-note").textContent = "";
+  paintPanel();
+  paintRoutes();
+  traffic.seed(state.params, metrics);
+  refreshLive();
+});
 
 const modelSelect = document.getElementById("model");
 if (catalog) modelSelect.value = state.model;
@@ -278,6 +306,48 @@ headway.addEventListener("input", () => {
   state.params.tramHeadwayMin = Number(headway.value);
   document.getElementById("headway-value").textContent = `${headway.value} min`;
   paintPanel();
+  refreshLive();
+});
+
+function setupScore(before, after, headwayMin) {
+  const extraMinutes = Math.max(0, after.carFieraMin - before.carFieraMin);
+  return after.peoplePerHour - 4 * after.unserved - 90 * extraMinutes - 6 * (60 / headwayMin);
+}
+
+document.getElementById("predict").addEventListener("click", () => {
+  const note = document.getElementById("predict-note");
+  if (!catalog) {
+    note.textContent = "The saved catalog is required to search setups.";
+    return;
+  }
+  let best = null;
+  for (const shiftValue of catalog.shifts) {
+    for (const headwayMin of catalog.headways) {
+      const before = catalog.cases[caseKey(state.model, "before", shiftValue, headwayMin, state.hour)];
+      const after = catalog.cases[caseKey(state.model, "after", shiftValue, headwayMin, state.hour)];
+      if (!before || !after) continue;
+      const score = setupScore(before, after, headwayMin);
+      if (!best || score > best.score) best = { shiftValue, headwayMin, score, before, after };
+    }
+  }
+  if (!best) {
+    note.textContent = "No saved setups for this hour.";
+    return;
+  }
+  state.params.modalShift = best.shiftValue;
+  state.params.tramHeadwayMin = best.headwayMin;
+  state.scenario = "after";
+  shift.value = String(Math.round(best.shiftValue * 100));
+  headway.value = String(best.headwayMin);
+  document.getElementById("shift-value").textContent = `${shift.value}%`;
+  document.getElementById("headway-value").textContent = `${best.headwayMin} min`;
+  const modelName = modelSelect.selectedOptions[0]?.textContent || state.model;
+  const extra = Math.round(best.after.carFieraMin - best.before.carFieraMin);
+  const carChange = extra > 0 ? `${extra} min longer` : extra < 0 ? `${Math.abs(extra)} min shorter` : "about the same";
+  note.textContent = `${modelName} for ${hourLabel(state.hour)}: ${shift.value}% of drivers switch, tram every ${best.headwayMin} min. ${Math.round(best.after.peoplePerHour).toLocaleString("en-GB")} people an hour pass San Felice, ${Math.round(best.after.unserved).toLocaleString("en-GB")} are left waiting, and the car trip to the Fiera is ${carChange}.`;
+  paintPanel();
+  paintRoutes();
+  traffic.seed(state.params, metrics);
   refreshLive();
 });
 

@@ -224,12 +224,27 @@ select {
   color: var(--ink);
 }
 
-#snap {
+#snap, #predict-note {
   min-height: 1.2em;
   margin: 8px 0 0;
   color: var(--muted);
   font-size: 12.5px;
 }
+
+#predict {
+  width: 100%;
+  margin-top: 4px;
+  padding: 10px 14px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--ink);
+  color: #fffaf3;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+#predict:disabled { opacity: 0.55; cursor: wait; }
 .swatch.tram { background: var(--red); width: 26px; }
 
 .scale-key i {

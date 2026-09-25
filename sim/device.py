@@ -1,7 +1,6 @@
 """Where the kernels run.
 
-Warp compiles the same kernels to CUDA on an NVIDIA GPU. The macOS build
-has no CUDA backend, so here they run on Warp's CPU device.
+Warp compiles the same kernels to CUDA when a CUDA device is present.
 """
 
 
