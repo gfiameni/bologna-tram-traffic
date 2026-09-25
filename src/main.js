@@ -165,16 +165,22 @@ if (heat) {
 
 function paintHeat() {
   if (!heat) return;
+  const carFlow = metrics[state.scenario].carFlow;
+  const beforeCarFlow = metrics.before.carFlow;
   heat.paint({
     heatmap: state.heatmap,
     scenario: state.scenario,
     cars: hourCars(catalog, state.hour),
     peakCars: centre.peakCars,
-    shift: state.params.modalShift,
+    carFlow,
+    beforeCarFlow,
   });
   document.getElementById("vehicles").classList.toggle("dim", state.heatmap);
   document.getElementById("heat-toggle").setAttribute("aria-pressed", String(state.heatmap));
   document.getElementById("heat-key").hidden = !state.heatmap;
+  document.getElementById("heat-note").textContent = state.heatmap
+    ? `${Math.round(carFlow).toLocaleString("en-GB")} modeled cars/hour feed the centre heat.`
+    : "";
 }
 
 function congestionColor(speed) {
@@ -348,6 +354,7 @@ headway.addEventListener("input", () => {
   state.params.tramHeadwayMin = Number(headway.value);
   document.getElementById("headway-value").textContent = `${headway.value} min`;
   paintPanel();
+  paintRoutes();
   refreshLive();
 });
 

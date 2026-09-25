@@ -15,7 +15,7 @@ A few inputs are assumptions, because the published data does not contain them:
 - Traffic-signal **positions** come from OpenStreetMap. Signal **timings** do not. Every junction is treated as a 90 second cycle with 40 seconds of green for the corridor.
 - Car demand is taken from boulevard loop detectors on Viale Ercolani and Viale Pietramellara, then applied to the corridor. Those loops are not on Via Emilia.
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00. The “with tram” scenario takes those buses off the alignment.
-- The city-centre heatmap uses OpenStreetMap streets inside the viali. The Comune counts cars on a few boulevards, not on every street. Interior heat is that boulevard hour scaled by road class. With the tram, heat leaves the tram streets and sits on the avenues.
+- The city-centre heatmap uses OpenStreetMap streets inside the viali. The Comune counts cars on a few boulevards, not on every street. The selected model’s car flow scales the hourly boulevard demand across OSM road classes. With the tram, heat leaves the tram streets and sits on the avenues.
 - Car occupancy (1.3 people) and a full bus (45 people, 90 seats of capacity) are modelling choices.
 - Where a cycle track already runs along most of a street in OpenStreetMap, bicycles are treated as protected. The scenario does not add new cycle tracks.
 

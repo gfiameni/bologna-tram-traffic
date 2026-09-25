@@ -3,19 +3,19 @@ export function hourCars(catalog, hour, fallback = 1155) {
   return slot?.cars ?? fallback;
 }
 
-export function intensity(sample, { scenario, cars, peakCars, shift }) {
+export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow }) {
   const hour = Math.max(0.12, cars / Math.max(peakCars || 1233, 1));
   const rank = sample.rank;
-  const share = Math.max(0, Math.min(0.5, shift));
+  const flowRatio = Math.max(0, Math.min(1.5, carFlow / Math.max(beforeCarFlow, 1)));
   if (sample.tram) {
-    return scenario === "after" ? Math.min(1, 0.11 * hour) : Math.min(1, rank * hour);
+    return scenario === "after" ? Math.min(1, 0.08 * hour * flowRatio) : Math.min(1, rank * hour);
   }
   if (sample.ring) {
-    const extra = scenario === "after" ? 0.3 * (1 - 0.45 * share) : 0;
+    const extra = scenario === "after" ? 0.3 * flowRatio : 0;
     return Math.min(1, rank * hour * (0.82 + extra));
   }
   const inside = rank * hour * 0.62;
-  return scenario === "after" ? inside * (0.38 + 0.22 * (1 - share)) : inside;
+  return scenario === "after" ? inside * flowRatio : inside;
 }
 
 function heatColor(value) {

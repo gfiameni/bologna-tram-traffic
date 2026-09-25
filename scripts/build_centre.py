@@ -173,8 +173,8 @@ def main():
         "peakCars": peak,
         "note": (
             "The Comune loop detectors sit on the boulevards. Heat on interior "
-            "streets is a scenario: OSM road class scaled by that boulevard hour, "
-            "not a count from every street."
+            "streets is a scenario: the selected model's car flow scales that "
+            "boulevard hour across OSM road classes, not a count from every street."
         ),
         "samples": samples,
         "streets": streets,
