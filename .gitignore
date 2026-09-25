@@ -1,0 +1,14 @@
+node_modules
+dist
+.venv
+.DS_Store
+__pycache__/
+*.py[cod]
+data/raw
+scripts/streets.json
+scripts/extra-streets.json
+scripts/preview.svg
+scripts/preview.png
+scripts/before.png
+scripts/after.png
+scripts/mobile.png

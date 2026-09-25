@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Bologna · Linea Rossa traffic</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,650&family=Outfit:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="map"></div>
+    <canvas id="vehicles"></canvas>
+    <aside id="panel">
+      <p class="eyebrow">Bologna · morning peak</p>
+      <h1>Linea Rossa</h1>
+      <p class="lede">
+        Traffic on the new tram corridor, from Borgo Panigale through the centre to the Fiera and Agraria.
+      </p>
+      <div class="switch" role="group" aria-label="Map scenario">
+        <button type="button" id="show-before" aria-pressed="true">Before the tram</button>
+        <button type="button" id="show-after" aria-pressed="false">With the tram</button>
+      </div>
+      <p class="kicker">Via Emilia speed</p>
+      <div class="hero" aria-live="polite">
+        <div>
+          <span id="speed-before">—</span>
+          <small>km/h before</small>
+        </div>
+        <div>
+          <span id="speed-after">—</span>
+          <small>km/h with tram</small>
+        </div>
+      </div>
+      <p id="finding"></p>
+      <table>
+        <thead>
+          <tr>
+            <th></th>
+            <th>Before</th>
+            <th>With tram</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr data-key="carFieraMin"><th>Car to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="carPilastroMin"><th>Car to Agraria</th><td></td><td></td></tr>
+          <tr data-key="bikeFieraMin"><th>Bicycle to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="transitFieraMin"><th>Transit to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="transitPilastroMin"><th>Transit to Agraria</th><td></td><td></td></tr>
+          <tr data-key="carFlow"><th>Cars / hour through San Felice</th><td></td><td></td></tr>
+          <tr data-key="peoplePerHour"><th>People / hour at San Felice</th><td></td><td></td></tr>
+          <tr data-key="unserved"><th>Transit riders left waiting</th><td></td><td></td></tr>
+        </tbody>
+      </table>
+      <label class="slider" for="model">
+        <span>Model</span>
+        <select id="model">
+          <option value="ctm">Cell transmission</option>
+          <option value="bpr">Volume-delay</option>
+          <option value="idm">Car following</option>
+          <option value="surrogate">Neural surrogate</option>
+        </select>
+      </label>
+      <p id="snap"></p>
+      <label class="slider">
+        <span>Car trips that switch to the tram <strong id="shift-value">25%</strong></span>
+        <input id="shift" type="range" min="0" max="50" step="1" value="25" />
+      </label>
+      <label class="slider">
+        <span>Tram every <strong id="headway-value">4.5 min</strong></span>
+        <input id="headway" type="range" min="3" max="8" step="0.5" value="4.5" />
+      </label>
+      <div class="playback">
+        <button type="button" id="play">Pause</button>
+        <div class="scale" role="group" aria-label="Simulation speed">
+          <button type="button" data-scale="20">20×</button>
+          <button type="button" data-scale="40" aria-pressed="true">40×</button>
+          <button type="button" data-scale="80">80×</button>
+        </div>
+      </div>
+      <details>
+        <summary>What this scenario assumes</summary>
+        <p id="assumptions"></p>
+      </details>
+    </aside>
+    <div id="legend">
+      <span><i class="swatch car"></i>Car</span>
+      <span><i class="swatch bike"></i>Bicycle</span>
+      <span><i class="swatch bus"></i>Bus</span>
+      <span><i class="swatch tram"></i>Tram</span>
+      <span class="scale-key"><i></i>slow</span>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
