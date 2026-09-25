@@ -2,7 +2,7 @@
 
 A morning-peak model of Bologna’s **Linea Rossa**: Borgo Panigale through the historic centre, then out to the Fiera (Michelino) and to the Faculty of Agriculture at Pilastro.
 
-The map shows the corridor **before** the tram (cars, buses, bicycles) and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
+The map shows the corridor **before** the tram (cars, buses, bicycles) and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **City centre heat** paints the streets inside the viali. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
 
 ![The corridor before the tram, then with trams on the alignment](docs/preview.gif)
 
@@ -15,6 +15,7 @@ A few inputs are assumptions, because the published data does not contain them:
 - Traffic-signal **positions** come from OpenStreetMap. Signal **timings** do not. Every junction is treated as a 90 second cycle with 40 seconds of green for the corridor.
 - Car demand is taken from boulevard loop detectors on Viale Ercolani and Viale Pietramellara, then applied to the corridor. Those loops are not on Via Emilia.
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00. The “with tram” scenario takes those buses off the alignment.
+- The city-centre heatmap uses OpenStreetMap streets inside the viali. The Comune counts cars on a few boulevards, not on every street. Interior heat is that boulevard hour scaled by road class. With the tram, heat leaves the tram streets and sits on the avenues.
 - Car occupancy (1.3 people) and a full bus (45 people, 90 seats of capacity) are modelling choices.
 - Where a cycle track already runs along most of a street in OpenStreetMap, bicycles are treated as protected. The scenario does not add new cycle tracks.
 
@@ -58,7 +59,7 @@ It listens on http://127.0.0.1:8765. The page calls it when you move a slider of
 npm run catalog
 ```
 
-`scripts/build_network.py` rebuilds `public/network.json` from named OpenStreetMap streets (`npm run network`).
+`scripts/build_network.py` rebuilds `public/network.json` from named OpenStreetMap streets (`npm run network`). `scripts/build_centre.py` rebuilds `public/centre.json`, the street samples for the city-centre heatmap (`npm run centre`).
 
 ## Run on DGX Spark
 
@@ -144,7 +145,7 @@ Everything below is data the publishers make available online. Each source keeps
 
 | Source | What this project uses | Retrieved | Licence |
 | --- | --- | --- | --- |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Named streets for the corridor, traffic-signal positions, cycleways, bus-stop positions. Stored in `public/network.json` and in the signal and stop lists inside `data/supply.json`. | Overpass, September 2026 | [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Named streets for the corridor, highways inside the viali for the heatmap, traffic-signal positions, cycleways, bus-stop positions. Stored in `public/network.json`, `public/centre.json`, and in the signal and stop lists inside `data/supply.json`. | Overpass, September 2026 | [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) |
 | [Comune di Bologna, Traffico viali](https://opendata.comune.bologna.it/explore/dataset/traffico-viali/) | Weekday 08:00–09:00 loop counts. The corridor demand is the median of the peak direction on Viale Ercolani (south, about 1,160 veh/h) and Viale Pietramellara (north-east, about 1,152 veh/h). | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna |
 | [Comune di Bologna, Rilevazione flussi bici](https://opendata.comune.bologna.it/explore/dataset/colonnine-conta-bici/) | Hourly bicycle counters. The run uses Stalingrado II, the counter nearest the corridor, on 23 September 2026, 08:00–09:00 local, peak direction 57 bikes/h. | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna |
 | [TPER GTFS, Bologna](https://solweb.tper.it/web/tools/open-data/open-data-download.aspx?source=solweb.tper.it&filename=gommagtfsbo&version=20260909&format=zip) | Weekday service on 23 September 2026, 08:00–09:00, at the Porta San Felice stop with the most trips (46 buses/h). Feed version `20260909`. | TPER open data, September 2026 | [CC BY 3.0 IT](https://creativecommons.org/licenses/by/3.0/it/) |
@@ -157,4 +158,4 @@ Attribution for the street geometry: © OpenStreetMap contributors.
 
 Original source code in this repository is released under the [MIT Licence](LICENSE). Copyright © 2026 gfiameni.
 
-Map geometry derived from OpenStreetMap, including `public/network.json`, stays under the Open Database Licence. Counts and timetables derived from the Comune di Bologna and from TPER stay under the licences in the table above. Those files are included so the map can run offline from the raw downloads; reuse them under the upstream licence, with attribution to the publisher.
+Map geometry derived from OpenStreetMap, including `public/network.json` and `public/centre.json`, stays under the Open Database Licence. Counts and timetables derived from the Comune di Bologna and from TPER stay under the licences in the table above. Those files are included so the map can run offline from the raw downloads; reuse them under the upstream licence, with attribution to the publisher.

@@ -3,6 +3,7 @@ import "leaflet/dist/leaflet.css";
 import "./style.css";
 import { DEFAULTS, prepare, evaluate, finding } from "./model.js";
 import { caseKey, predictionSentence, reportHtml, downloadReport, searchBestSetup } from "./report.js";
+import { createHeat, hourCars } from "./heatmap.js";
 import { createTraffic } from "./traffic.js";
 
 async function main() {
@@ -14,6 +15,7 @@ const state = {
   timeScale: 40,
   model: "ctm",
   hour: 8,
+  heatmap: false,
   params: { ...DEFAULTS },
 };
 
@@ -26,6 +28,14 @@ try {
 }
 if (catalog?.defaultModel) state.model = catalog.defaultModel;
 if (catalog?.defaultHour) state.hour = catalog.defaultHour;
+
+let centre = null;
+try {
+  const response = await fetch("/centre.json");
+  if (response.ok) centre = await response.json();
+} catch {
+  centre = null;
+}
 
 function hourLabel(hour) {
   const slot = catalog?.hours?.find((item) => item.hour === hour);
@@ -142,6 +152,31 @@ function resize() {
 resize();
 window.addEventListener("resize", resize);
 
+const heatCanvas = document.getElementById("heat");
+const heat = centre ? createHeat(map, heatCanvas, centre) : null;
+if (heat) {
+  const heatResize = () => {
+    heat.resize();
+    paintHeat();
+  };
+  heatResize();
+  window.addEventListener("resize", heatResize);
+}
+
+function paintHeat() {
+  if (!heat) return;
+  heat.paint({
+    heatmap: state.heatmap,
+    scenario: state.scenario,
+    cars: hourCars(catalog, state.hour),
+    peakCars: centre.peakCars,
+    shift: state.params.modalShift,
+  });
+  document.getElementById("vehicles").classList.toggle("dim", state.heatmap);
+  document.getElementById("heat-toggle").setAttribute("aria-pressed", String(state.heatmap));
+  document.getElementById("heat-key").hidden = !state.heatmap;
+}
+
 function congestionColor(speed) {
   const ratio = speed / state.params.freeSpeedMps;
   if (ratio > 0.72) return "#1f8a4c";
@@ -158,6 +193,7 @@ function paintRoutes() {
   const planned = state.scenario === "before";
   for (const line of plannedLines) line.setStyle({ opacity: planned ? 0.75 : 0 });
   centreLine.setStyle({ opacity: planned ? 0 : 1 });
+  paintHeat();
 }
 
 function formatMinutes(value) {
@@ -180,7 +216,8 @@ function assumptionText() {
       ? "Cell transmission and car following are Warp kernels, running on CUDA."
       : "Cell transmission and car following are Warp kernels. This page is using the NumPy copy of those updates, which the tests match to Warp. The model server runs the kernels on CUDA when Warp reports a GPU.",
     "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues. Bicycles stay on the corridor, including through the centre. Passenger service is expected in 2027. This is a scenario, not a forecast from the Comune.",
-  ].join(" ");
+    centre?.note,
+  ].filter(Boolean).join(" ");
 }
 
 function paintPanel(options = {}) {
@@ -288,6 +325,14 @@ document.getElementById("show-after").addEventListener("click", () => {
   state.scenario = "after";
   paintPanel({ keep: Boolean(metrics.live) });
   paintRoutes();
+});
+
+const heatToggle = document.getElementById("heat-toggle");
+if (!centre) heatToggle.hidden = true;
+heatToggle.addEventListener("click", () => {
+  state.heatmap = !state.heatmap;
+  paintHeat();
+  if (state.heatmap && heat) heat.showCentre();
 });
 
 const shift = document.getElementById("shift");

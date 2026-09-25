@@ -79,10 +79,10 @@ export function createTraffic(geo) {
     if (perHour < 0.2) return;
     const spacing = 3600 / perHour;
     const pieces = chainFor(mode, branch);
-    let cursor = (dir > 0 ? 0.2 : 0.5) * spacing;
+    let elapsed = (dir > 0 ? 0.2 : 0.5) * spacing;
     let guard = 0;
     while (guard++ < 80) {
-      let remaining = cursor;
+      let remaining = elapsed;
       let placed = false;
       for (const piece of pieces) {
         const poly = geo.pieces[geometryMode(mode)][piece];
@@ -104,7 +104,7 @@ export function createTraffic(geo) {
         remaining -= duration;
       }
       if (!placed) break;
-      cursor += spacing;
+      elapsed += spacing;
     }
   }
 

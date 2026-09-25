@@ -13,6 +13,7 @@
   </head>
   <body>
     <div id="map"></div>
+    <canvas id="heat"></canvas>
     <canvas id="vehicles"></canvas>
     <aside id="panel">
       <p class="eyebrow" id="when">Bologna · morning peak</p>
@@ -24,6 +25,7 @@
         <button type="button" id="show-before" aria-pressed="true">Before the tram</button>
         <button type="button" id="show-after" aria-pressed="false">With the tram</button>
       </div>
+      <button type="button" id="heat-toggle" aria-pressed="false">City centre heat</button>
       <p class="kicker">Via Emilia speed</p>
       <div class="hero" aria-live="polite">
         <div>
@@ -99,6 +101,7 @@
       <span><i class="swatch bus"></i>Bus</span>
       <span><i class="swatch tram"></i>Tram</span>
       <span class="scale-key"><i></i>slow</span>
+      <span id="heat-key" hidden><i class="heat-swatch"></i>centre cars</span>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>
