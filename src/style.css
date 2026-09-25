@@ -245,6 +245,19 @@ select {
 }
 
 #predict:disabled { opacity: 0.55; cursor: wait; }
+
+#export-report {
+  width: 100%;
+  margin-top: 8px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--ink);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
 .swatch.tram { background: var(--red); width: 26px; }
 
 .scale-key i {

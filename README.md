@@ -2,7 +2,7 @@
 
 A morning-peak model of Bologna’s **Linea Rossa**: Borgo Panigale through the historic centre, then out to the Fiera (Michelino) and to the Faculty of Agriculture at Pilastro.
 
-The map shows the corridor **before** the tram (cars, buses, bicycles) and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera.
+The map shows the corridor **before** the tram (cars, buses, bicycles) and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
 
 ![The corridor before the tram, then with trams on the alignment](docs/preview.gif)
 

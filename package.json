@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/model.test.js",
+    "test": "node test/model.test.js && node test/report.test.js",
     "models": "PYTHONPATH=. .venv/bin/python test/test_sim.py",
     "catalog": "PYTHONPATH=. .venv/bin/python -m sim.catalog",
     "serve-models": "PYTHONPATH=. .venv/bin/python -m sim.server",

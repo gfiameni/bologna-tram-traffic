@@ -2,6 +2,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
 import { DEFAULTS, prepare, evaluate, finding } from "./model.js";
+import { caseKey, predictionSentence, reportHtml, downloadReport, searchBestSetup } from "./report.js";
 import { createTraffic } from "./traffic.js";
 
 async function main() {
@@ -25,10 +26,6 @@ try {
 }
 if (catalog?.defaultModel) state.model = catalog.defaultModel;
 if (catalog?.defaultHour) state.hour = catalog.defaultHour;
-
-function caseKey(model, scenario, shift, headway, hour) {
-  return `${model}|${scenario}|${shift.toFixed(2)}|${headway.toFixed(1)}|${String(hour).padStart(2, "0")}`;
-}
 
 function hourLabel(hour) {
   const slot = catalog?.hours?.find((item) => item.hour === hour);
@@ -309,31 +306,23 @@ headway.addEventListener("input", () => {
   refreshLive();
 });
 
-function setupScore(before, after, headwayMin) {
-  const extraMinutes = Math.max(0, after.carFieraMin - before.carFieraMin);
-  return after.peoplePerHour - 4 * after.unserved - 90 * extraMinutes - 6 * (60 / headwayMin);
+function currentBest() {
+  if (!catalog) return null;
+  return searchBestSetup(catalog, state.model, state.hour);
+}
+
+function modelLabel() {
+  return modelSelect.selectedOptions[0]?.textContent || state.model;
 }
 
 document.getElementById("predict").addEventListener("click", () => {
   const note = document.getElementById("predict-note");
-  if (!catalog) {
-    note.textContent = "The saved catalog is required to search setups.";
+  const found = currentBest();
+  if (!found) {
+    note.textContent = catalog ? "No saved setups for this hour." : "The saved catalog is required to search setups.";
     return;
   }
-  let best = null;
-  for (const shiftValue of catalog.shifts) {
-    for (const headwayMin of catalog.headways) {
-      const before = catalog.cases[caseKey(state.model, "before", shiftValue, headwayMin, state.hour)];
-      const after = catalog.cases[caseKey(state.model, "after", shiftValue, headwayMin, state.hour)];
-      if (!before || !after) continue;
-      const score = setupScore(before, after, headwayMin);
-      if (!best || score > best.score) best = { shiftValue, headwayMin, score, before, after };
-    }
-  }
-  if (!best) {
-    note.textContent = "No saved setups for this hour.";
-    return;
-  }
+  const { best } = found;
   state.params.modalShift = best.shiftValue;
   state.params.tramHeadwayMin = best.headwayMin;
   state.scenario = "after";
@@ -341,14 +330,47 @@ document.getElementById("predict").addEventListener("click", () => {
   headway.value = String(best.headwayMin);
   document.getElementById("shift-value").textContent = `${shift.value}%`;
   document.getElementById("headway-value").textContent = `${best.headwayMin} min`;
-  const modelName = modelSelect.selectedOptions[0]?.textContent || state.model;
-  const extra = Math.round(best.after.carFieraMin - best.before.carFieraMin);
-  const carChange = extra > 0 ? `${extra} min longer` : extra < 0 ? `${Math.abs(extra)} min shorter` : "about the same";
-  note.textContent = `${modelName} for ${hourLabel(state.hour)}: ${shift.value}% of drivers switch, tram every ${best.headwayMin} min. ${Math.round(best.after.peoplePerHour).toLocaleString("en-GB")} people an hour pass San Felice, ${Math.round(best.after.unserved).toLocaleString("en-GB")} are left waiting, and the car trip to the Fiera is ${carChange}.`;
+  note.textContent = predictionSentence(modelLabel(), hourLabel(state.hour), best);
   paintPanel();
   paintRoutes();
   traffic.seed(state.params, metrics);
   refreshLive();
+});
+
+document.getElementById("export-report").addEventListener("click", () => {
+  const note = document.getElementById("predict-note");
+  const found = currentBest();
+  if (!found) {
+    note.textContent = catalog ? "No saved setups for this hour." : "The saved catalog is required to write the report.";
+    return;
+  }
+  const label = modelLabel();
+  const when = hourLabel(state.hour);
+  const sentence = predictionSentence(label, when, found.best);
+  const slot = catalog.hours?.find((item) => item.hour === state.hour);
+  const supply = catalog.supply;
+  const html = reportHtml({
+    modelLabel: label,
+    hourLabel: when,
+    hourSlot: slot,
+    best: found.best,
+    ranked: found.ranked,
+    notes: [
+      supply?.notes?.cars,
+      supply?.notes?.bikes,
+      supply?.notes?.buses,
+      supply?.signalTiming,
+      "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues.",
+    ],
+    generatedAt: new Date().toLocaleString("en-GB", {
+      dateStyle: "long",
+      timeStyle: "short",
+      timeZone: "Europe/Rome",
+    }),
+  });
+  const hour = String(state.hour).padStart(2, "0");
+  downloadReport(`linea-rossa-${hour}-${state.model}.html`, html);
+  note.textContent = sentence;
 });
 
 document.getElementById("play").addEventListener("click", () => {
