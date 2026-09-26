@@ -3,19 +3,24 @@ export function hourCars(catalog, hour, fallback = 1155) {
   return slot?.cars ?? fallback;
 }
 
-export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow }) {
+export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow, activeLines }) {
   const hour = Math.max(0.12, cars / Math.max(peakCars || 1233, 1));
   const rank = sample.rank;
   const flowRatio = Math.max(0, Math.min(1.5, carFlow / Math.max(beforeCarFlow, 1)));
-  if (sample.tram) {
-    return scenario === "after" ? Math.min(1, 0.08 * hour * flowRatio) : Math.min(1, rank * hour);
+  const active = activeLines || ["rossa"];
+  const serving = scenario === "after" && active.length > 0;
+  if (sample.line) {
+    if (serving && active.includes(sample.line)) return 0.22;
+    return 0;
   }
+  if (sample.tram && serving && active.includes("rossa")) return Math.min(1, 0.08 * hour * flowRatio);
+  if (sample.tram && !serving) return Math.min(1, rank * hour);
   if (sample.ring) {
-    const extra = scenario === "after" ? 0.3 * flowRatio : 0;
+    const extra = serving ? 0.3 * flowRatio : 0;
     return Math.min(1, rank * hour * (0.82 + extra));
   }
   const inside = rank * hour * 0.62;
-  return scenario === "after" ? inside * flowRatio : inside;
+  return serving ? inside * flowRatio : inside;
 }
 
 function heatColor(value) {
@@ -25,9 +30,12 @@ function heatColor(value) {
   return [31, 138, 76];
 }
 
-export function createHeat(map, canvas, centre) {
+export function createHeat(map, canvas, centre, plan) {
   const ctx = canvas.getContext("2d");
-  const samples = centre.samples || [];
+  const samples = [
+    ...(centre.samples || []),
+    ...(plan?.lines || []).filter((line) => line.id !== "rossa").flatMap((line) => line.samples || []),
+  ];
 
   function resize() {
     const ratio = window.devicePixelRatio || 1;

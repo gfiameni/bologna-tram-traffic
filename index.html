@@ -19,11 +19,17 @@
       <p class="eyebrow" id="when">Bologna · morning peak</p>
       <h1>Linea Rossa</h1>
       <p class="lede">
-        Traffic on the new tram corridor, from Borgo Panigale through the centre to the Fiera and Agraria.
+        Traffic with the planned tram lines. Rossa is the modelled corridor, from Borgo Panigale through the centre to the Fiera and Agraria. Verde, Gialla, and Blu can be opened on top of it.
       </p>
       <div class="switch" role="group" aria-label="Map scenario">
         <button type="button" id="show-before" aria-pressed="true">Before the tram</button>
         <button type="button" id="show-after" aria-pressed="false">With the tram</button>
+      </div>
+      <div id="lines" role="group" aria-label="Planned tram lines">
+        <label class="line-rossa"><input type="checkbox" value="rossa" checked> Rossa</label>
+        <label class="line-verde"><input type="checkbox" value="verde"> Verde</label>
+        <label class="line-gialla"><input type="checkbox" value="gialla"> Gialla</label>
+        <label class="line-blu"><input type="checkbox" value="blu"> Blu</label>
       </div>
       <button type="button" id="heat-toggle" aria-pressed="false">City centre heat</button>
       <p id="heat-note" aria-live="polite"></p>
@@ -62,6 +68,7 @@
         <span>Time of day</span>
         <select id="hour"></select>
       </label>
+      <button type="button" id="play-day" aria-pressed="false">Play the day</button>
       <label class="slider" for="model">
         <span>Model</span>
         <select id="model">

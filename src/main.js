@@ -4,6 +4,7 @@ import "./style.css";
 import { DEFAULTS, prepare, evaluate, finding } from "./model.js";
 import { caseKey, predictionSentence, reportHtml, downloadReport, searchBestSetup } from "./report.js";
 import { createHeat, hourCars } from "./heatmap.js";
+import { withLines } from "./lines.js";
 import { createTraffic } from "./traffic.js";
 
 async function main() {
@@ -16,6 +17,7 @@ const state = {
   model: "ctm",
   hour: 8,
   heatmap: false,
+  lines: ["rossa"],
   params: { ...DEFAULTS },
 };
 
@@ -29,6 +31,13 @@ try {
 if (catalog?.defaultModel) state.model = catalog.defaultModel;
 if (catalog?.defaultHour) state.hour = catalog.defaultHour;
 
+let linesPlan = null;
+try {
+  const response = await fetch("/lines.json");
+  if (response.ok) linesPlan = await response.json();
+} catch {
+  linesPlan = null;
+}
 let centre = null;
 try {
   const response = await fetch("/centre.json");
@@ -58,8 +67,11 @@ function pair() {
 }
 
 let metrics = pair();
+function shown() {
+  return withLines(metrics, state.lines, linesPlan);
+}
 const traffic = createTraffic(geo);
-traffic.seed(state.params, metrics);
+traffic.seed(state.params, shown());
 
 const map = L.map("map", { zoomControl: false, minZoom: 12, maxZoom: 18 });
 L.control.zoom({ position: "topright" }).addTo(map);
@@ -134,6 +146,22 @@ for (const stop of network.stops) {
   }).bindTooltip(stop.name, { direction: "top", offset: [0, -6] }).addTo(map);
 }
 
+const extraLayers = [];
+if (linesPlan) {
+  for (const line of linesPlan.lines) {
+    if (line.id === "rossa") continue;
+    const layers = line.segments.map((segment) => L.polyline(segment, {
+      color: line.color,
+      weight: 4,
+      opacity: 0.25,
+      dashArray: "5 8",
+      lineCap: "round",
+      interactive: false,
+    }).addTo(map));
+    extraLayers.push({ id: line.id, layers });
+  }
+}
+
 const bounds = L.latLngBounds(network.stops.map((stop) => [stop.lat, stop.lon]));
 map.fitBounds(bounds, {
   paddingTopLeft: [window.innerWidth > 800 ? 430 : 24, 24],
@@ -153,7 +181,7 @@ resize();
 window.addEventListener("resize", resize);
 
 const heatCanvas = document.getElementById("heat");
-const heat = centre ? createHeat(map, heatCanvas, centre) : null;
+const heat = centre ? createHeat(map, heatCanvas, centre, linesPlan) : null;
 if (heat) {
   const heatResize = () => {
     heat.resize();
@@ -165,8 +193,9 @@ if (heat) {
 
 function paintHeat() {
   if (!heat) return;
-  const carFlow = metrics[state.scenario].carFlow;
-  const beforeCarFlow = metrics.before.carFlow;
+  const current = shown();
+  const carFlow = current[state.scenario].carFlow;
+  const beforeCarFlow = current.before.carFlow;
   heat.paint({
     heatmap: state.heatmap,
     scenario: state.scenario,
@@ -174,12 +203,14 @@ function paintHeat() {
     peakCars: centre.peakCars,
     carFlow,
     beforeCarFlow,
+    activeLines: state.lines,
   });
   document.getElementById("vehicles").classList.toggle("dim", state.heatmap);
   document.getElementById("heat-toggle").setAttribute("aria-pressed", String(state.heatmap));
   document.getElementById("heat-key").hidden = !state.heatmap;
+  const open = state.lines.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
   document.getElementById("heat-note").textContent = state.heatmap
-    ? `${Math.round(carFlow).toLocaleString("en-GB")} modeled cars/hour feed the centre heat.`
+    ? `${Math.round(carFlow).toLocaleString("en-GB")} modeled cars/hour feed the centre heat${state.scenario === "after" && open.length ? `, with ${open.join(", ")} open` : ""}.`
     : "";
 }
 
@@ -192,13 +223,25 @@ function congestionColor(speed) {
 }
 
 function paintRoutes() {
-  const speeds = metrics[state.scenario].speeds;
+  const current = shown();
+  const speeds = current[state.scenario].speeds;
   for (const [name, line] of Object.entries(carLines)) {
     line.setStyle({ color: congestionColor(speeds[name]) });
   }
-  const planned = state.scenario === "before";
-  for (const line of plannedLines) line.setStyle({ opacity: planned ? 0.75 : 0 });
-  centreLine.setStyle({ opacity: planned ? 0 : 1 });
+  const rossaOn = state.scenario === "after" && state.lines.includes("rossa");
+  for (const line of plannedLines) line.setStyle({ opacity: rossaOn ? 0 : 0.75 });
+  centreLine.setStyle({ opacity: rossaOn ? 1 : 0 });
+  const after = state.scenario === "after";
+  for (const item of extraLayers) {
+    const on = state.lines.includes(item.id);
+    for (const layer of item.layers) {
+      layer.setStyle({
+        opacity: on ? (after ? 0.95 : 0.45) : 0.18,
+        weight: on && after ? 5 : 3,
+        dashArray: on && after ? null : "5 8",
+      });
+    }
+  }
   paintHeat();
 }
 
@@ -222,14 +265,16 @@ function assumptionText() {
       ? "Cell transmission and car following are Warp kernels, running on CUDA."
       : "Cell transmission and car following are Warp kernels. This page is using the NumPy copy of those updates, which the tests match to Warp. The model server runs the kernels on CUDA when Warp reports a GPU.",
     "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues. Bicycles stay on the corridor, including through the centre. Passenger service is expected in 2027. This is a scenario, not a forecast from the Comune.",
+    linesPlan?.note,
     centre?.note,
   ].filter(Boolean).join(" ");
 }
 
 function paintPanel(options = {}) {
   if (!options.keep) metrics = pair();
-  const before = metrics.before;
-  const after = metrics.after;
+  const current = shown();
+  const before = current.before;
+  const after = current.after;
   document.getElementById("when").textContent = `Bologna · ${hourLabel(state.hour)}`;
   document.getElementById("assumptions").textContent = assumptionText();
   const snap = document.getElementById("snap");
@@ -242,7 +287,18 @@ function paintPanel(options = {}) {
   }
   document.getElementById("speed-before").textContent = `${Math.round(before.viaEmiliaKmh)}`;
   document.getElementById("speed-after").textContent = `${Math.round(after.viaEmiliaKmh)}`;
-  document.getElementById("finding").textContent = finding(metrics);
+  const extras = state.lines.filter((id) => id !== "rossa");
+  const extraNames = extras.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
+  const joined = extraNames.length < 2
+    ? extraNames.join("")
+    : `${extraNames.slice(0, -1).join(", ")} and ${extraNames.at(-1)}`;
+  const base = state.lines.includes("rossa")
+    ? finding(current)
+    : "Linea Rossa is off, so the corridor keeps its lanes and its car times.";
+  const lineSentence = joined
+    ? ` ${joined} ${extraNames.length === 1 ? "is" : "are"} also open, so this scenario leaves ${Math.round(after.carFlow).toLocaleString("en-GB")} cars an hour.`
+    : "";
+  document.getElementById("finding").textContent = `${base}${lineSentence}`;
   const rows = {
     carFieraMin: [before.carFieraMin, after.carFieraMin],
     carPilastroMin: [before.carPilastroMin, after.carPilastroMin],
@@ -303,13 +359,50 @@ for (const slot of catalog?.hours || [{ hour: 8, label: "08:00 · morning peak" 
   hourSelect.append(option);
 }
 hourSelect.value = String(state.hour);
-hourSelect.addEventListener("change", () => {
-  state.hour = Number(hourSelect.value);
+
+let dayTimer = 0;
+const dayButton = document.getElementById("play-day");
+function stopDay() {
+  if (dayTimer) {
+    clearInterval(dayTimer);
+    dayTimer = 0;
+  }
+  dayButton.textContent = "Play the day";
+  dayButton.setAttribute("aria-pressed", "false");
+}
+function applyHour(hour, live) {
+  state.hour = hour;
+  hourSelect.value = String(hour);
   document.getElementById("predict-note").textContent = "";
   paintPanel();
   paintRoutes();
-  traffic.seed(state.params, metrics);
-  refreshLive();
+  traffic.seed(state.params, shown());
+  if (live) refreshLive();
+  else requestToken += 1;
+}
+hourSelect.addEventListener("change", () => {
+  stopDay();
+  applyHour(Number(hourSelect.value), true);
+});
+dayButton.addEventListener("click", () => {
+  if (dayTimer) {
+    stopDay();
+    return;
+  }
+  const hours = (catalog?.hours || [{ hour: state.hour }]).map((slot) => slot.hour);
+  state.heatmap = true;
+  dayButton.textContent = "Stop the day";
+  dayButton.setAttribute("aria-pressed", "true");
+  let index = 0;
+  applyHour(hours[0], false);
+  dayTimer = setInterval(() => {
+    index += 1;
+    if (index >= hours.length) {
+      stopDay();
+      return;
+    }
+    applyHour(hours[index], false);
+  }, 1400);
 });
 
 const modelSelect = document.getElementById("model");
@@ -318,8 +411,16 @@ modelSelect.addEventListener("change", () => {
   state.model = modelSelect.value;
   paintPanel();
   paintRoutes();
-  traffic.seed(state.params, metrics);
+  traffic.seed(state.params, shown());
   refreshLive();
+});
+
+document.getElementById("lines").addEventListener("change", () => {
+  state.lines = [...document.querySelectorAll("#lines input:checked")].map((input) => input.value);
+  if (state.lines.some((id) => id !== "rossa")) state.scenario = "after";
+  paintPanel({ keep: Boolean(metrics.live) });
+  paintRoutes();
+  traffic.seed(state.params, shown());
 });
 
 document.getElementById("show-before").addEventListener("click", () => {
@@ -385,7 +486,7 @@ document.getElementById("predict").addEventListener("click", () => {
   note.textContent = predictionSentence(modelLabel(), hourLabel(state.hour), best);
   paintPanel();
   paintRoutes();
-  traffic.seed(state.params, metrics);
+  traffic.seed(state.params, shown());
   refreshLive();
 });
 
@@ -481,7 +582,7 @@ function frame(now) {
   const wall = Math.min(0.05, (now - last) / 1000);
   last = now;
   if (state.playing) {
-    traffic.step(wall * state.timeScale, state.params, metrics);
+    traffic.step(wall * state.timeScale, state.params, shown());
     styleTimer += wall;
     if (styleTimer > 0.4) {
       styleTimer = 0;

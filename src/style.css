@@ -105,6 +105,40 @@ h1 {
 
 .switch button { flex: 1; }
 
+#lines {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-top: 8px;
+}
+
+#lines label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 13.5px;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+#lines label::before {
+  content: "";
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.line-rossa { color: #e30613; }
+.line-verde { color: #1f8a4c; }
+.line-gialla { color: #c48a00; }
+.line-blu { color: #1e4f86; }
+
+#lines input { accent-color: currentColor; }
+
 #heat-toggle {
   width: 100%;
   margin-top: 8px;
@@ -120,10 +154,26 @@ h1 {
   cursor: pointer;
 }
 
-#heat-toggle[aria-pressed="true"] {
+#heat-toggle[aria-pressed="true"],
+#play-day[aria-pressed="true"] {
   background: var(--ink);
   color: var(--paper);
   border-color: var(--ink);
+}
+
+#play-day {
+  width: 100%;
+  margin-top: 8px;
+  appearance: none;
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--ink);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 550;
+  border-radius: 999px;
+  padding: 8px 12px;
+  cursor: pointer;
 }
 
 #heat-note {

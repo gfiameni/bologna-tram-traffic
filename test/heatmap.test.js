@@ -50,3 +50,10 @@ check("evening is cooler than the morning peak", intensity(inside, viewNight) < 
 check("heat stays between 0 and 1", intensity(ring, viewAfter) <= 1 && intensity(tram, viewMorning) > 0);
 check("interior heat follows modeled car flow", intensity(inside, viewHigherFlow) > intensity(inside, viewAfter));
 check("avenue heat follows modeled car flow", intensity(ring, viewHigherFlow) > intensity(ring, viewAfter));
+const noLines = { ...viewMorning, scenario: "after", activeLines: [] };
+check(
+  "an empty line selection leaves the heat as it was",
+  intensity(ring, noLines) === intensity(ring, viewMorning)
+    && intensity(inside, noLines) === intensity(inside, viewMorning)
+    && intensity(tram, noLines) === intensity(tram, viewMorning),
+);
