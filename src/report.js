@@ -100,7 +100,7 @@ export function reportHtml({
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Linea Rossa · ${escapeHtml(hourLabel)}</title>
+  <title>Bologna tram network · ${escapeHtml(hourLabel)}</title>
   <style>
     body { margin: 0; background: #f4efe4; color: #1b1714; font: 16px/1.45 "Segoe UI", sans-serif; }
     main { max-width: 760px; margin: 0 auto; padding: 40px 28px 72px; }
@@ -122,7 +122,7 @@ export function reportHtml({
 </head>
 <body>
   <main>
-    <p class="eyebrow">Bologna · Linea Rossa</p>
+    <p class="eyebrow">Bologna tram network</p>
     <h1>Best setup</h1>
     <p class="lead">${escapeHtml(sentence)}</p>
     <div class="setup">

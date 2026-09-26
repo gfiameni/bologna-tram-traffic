@@ -72,9 +72,9 @@ h1 {
   margin: 4px 0 0;
   font-family: Fraunces, serif;
   font-weight: 650;
-  font-size: 40px;
+  font-size: 36px;
   letter-spacing: -0.03em;
-  line-height: 0.95;
+  line-height: 1;
 }
 
 .lede, #finding, details p {

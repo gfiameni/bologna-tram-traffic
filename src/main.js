@@ -294,7 +294,7 @@ function paintPanel(options = {}) {
     : `${extraNames.slice(0, -1).join(", ")} and ${extraNames.at(-1)}`;
   const base = state.lines.includes("rossa")
     ? finding(current)
-    : "Linea Rossa is off, so the corridor keeps its lanes and its car times.";
+    : "Rossa is off, so that corridor keeps its lanes and its car times.";
   const lineSentence = joined
     ? ` ${joined} ${extraNames.length === 1 ? "is" : "are"} also open, so this scenario leaves ${Math.round(after.carFlow).toLocaleString("en-GB")} cars an hour.`
     : "";
