@@ -6,6 +6,24 @@ The map shows the corridor **before** the tram (cars, buses, bicycles) and **wit
 
 ![City centre heat before the tram, then with the tram on the alignment](docs/preview.gif)
 
+### Time of day
+
+The same corridor at 21:00 has lighter car demand than the morning peak. Cell transmission lets more cars through San Felice, at a higher speed, once the signals are no longer saturated.
+
+![Evening demand on the corridor, with the time-of-day control set to 21:00](docs/time-of-day.gif)
+
+### Best setup
+
+**Predict best setup** searches the saved grid for the selected model and hour, then applies that shift and tram frequency on the map.
+
+![Predict best setup for 21:00: half of drivers switch, tram every 8 minutes](docs/predict.gif)
+
+### Heat and car flow
+
+With the volume-delay model, moving the switch slider changes how many cars the model gets through. The centre heat follows that flow: 1,155 cars an hour at no switch, 578 when half of the drivers switch.
+
+![Centre heat cooling as modeled car flow falls from 1,155 to 578 cars an hour](docs/heat-flow.gif)
+
 ## Disclaimer
 
 This project is an illustration built from data that public agencies already publish on the web. The numbers on the map are the output of the models in this repository. They are not a forecast, a design study, or an official figure from the Comune di Bologna, TPER, the tram project, or any other authority.
