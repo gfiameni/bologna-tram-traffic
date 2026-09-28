@@ -7,13 +7,14 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node test/model.test.js && node test/report.test.js && node test/heatmap.test.js && node test/lines.test.js",
+    "test": "node test/model.test.js && node test/report.test.js && node test/heatmap.test.js && node test/lines.test.js && node test/air.test.js",
     "models": "PYTHONPATH=. .venv/bin/python test/test_sim.py",
     "catalog": "PYTHONPATH=. .venv/bin/python -m sim.catalog",
     "serve-models": "PYTHONPATH=. .venv/bin/python -m sim.server",
     "network": "python3 scripts/build_network.py",
     "centre": "python3 scripts/build_centre.py",
-    "lines": "python3 scripts/build_lines.py"
+    "lines": "python3 scripts/build_lines.py",
+    "air": "python3 scripts/build_air.py"
   },
   "dependencies": {
     "leaflet": "^1.9.4"

@@ -40,6 +40,7 @@ A few inputs are assumptions, because the published data does not contain them:
 - Car demand is taken from boulevard loop detectors on Viale Ercolani and Viale Pietramellara, then applied to the corridor. Those loops are not on Via Emilia.
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00. The “with tram” scenario takes those buses off the alignment.
 - The city-centre heatmap uses OpenStreetMap streets inside the viali. The Comune counts cars on a few boulevards, not on every street. The selected model’s car flow scales the hourly boulevard demand across OSM road classes. With the tram, heat leaves the tram streets and sits on the avenues.
+- The air proxy is not a pollution plume. The three ARPAE stations in Bologna keep their measured NO2. Street colour follows the traffic model: exhaust falls where cars leave an open tram line and rises on the avenues that take those cars. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service, so there is no measured before and after.
 - Verde, Gialla, and Blu are the other lines named on [trambologna.it](https://www.trambologna.it/). Each checkbox opens that corridor. Rossa uses the saved traffic model. Each extra open line takes a further share of cars off the street in the “with the tram” scenario and draws that corridor on the heatmap. That share is a scenario, not a second city-wide assignment.
 - Car occupancy (1.3 people) and a full bus (45 people, 90 seats of capacity) are modelling choices.
 - Where a cycle track already runs along most of a street in OpenStreetMap, bicycles are treated as protected. The scenario does not add new cycle tracks.
@@ -150,10 +151,31 @@ The neural model is fit to this corridor’s cell-transmission runs. It is not a
 
 ## Models
 
-- **Volume-delay.** A BPR curve plus Webster delay at each signal. Every car trip is assigned; a crowded street gets slower.
-- **Cell transmission.** Daganzo’s cell model. Signals stop the cells on red. If demand is above what the greens can clear, fewer cars get through San Felice.
-- **Car following.** The Intelligent Driver Model, with buses dwelling at stops and bicycles either on a cycle track or in the traffic.
-- **Neural surrogate.** A 12-neuron network trained on cell-transmission runs of this corridor. The holdout error, in minutes per street, is shown in the assumptions on the map.
+The map starts on **cell transmission**. The other three answer a different question about the same corridor, the same hours, and the same before/after scenario. **Predict best setup** searches only the model that is selected, so the recommended switch and tram frequency can change when the model changes. Tram frequency changes how many people can board. It does not change the car physics. Verde, Gialla, and Blu are a further share of cars taken off the street on top of whichever model is selected.
+
+### Volume-delay
+
+A BPR curve plus Webster delay at each signal. Every car that is sent down the street is assumed to get through. Crowding shows up as a lower speed and a longer trip, not as a queue that stops some of the demand.
+
+Use it for a first look at travel time: what happens to the Via Emilia speed when a lane is given to the tracks, or when more drivers switch. Also use it when the centre heat should follow the switch slider. In this model the cars per hour are the demand that remains, so moving the slider from no switch to half the drivers changes the morning heat from about 1,155 to 578 cars an hour. Do not use it to ask whether the signals can clear the peak. They always can, in this curve, and the trip simply takes longer.
+
+### Cell transmission
+
+Daganzo’s cell model, and the default on the map. The street is split into cells of about 50 metres. Each cell sends cars forward only when the next cell has room, and a red signal stops the cell in front of it. If the green time cannot clear the arrivals, the cars that do not fit stay in the queue and fewer of them pass Porta San Felice.
+
+Use it when the question is capacity: the morning peak, a lane taken for the tracks, or how many cars an hour the corridor can still carry. On this street the morning greens are already full, so the after-tram flow stays near 246 cars an hour across the switch slider. The heat then changes with the hour of the day more than with the slider. The neural surrogate is trained on this model, so cell transmission is also the reference when checking that surrogate.
+
+### Car following
+
+The Intelligent Driver Model. Cars, buses, and bicycles are individual vehicles. A bus dwells at each stop. A bicycle rides in the traffic, or at its own speed where OpenStreetMap already shows a cycle track along most of the street. Acceleration is a Warp kernel, with a NumPy twin used for the saved catalog.
+
+Use it when the mix of vehicles matters: a bus stopped in the lane, bicycles sharing the street, or the stop-and-go that a red light starts. It is the closest of the four to the animation on the map. It is a slow run of one corridor, so it is a poor choice for a quick sweep of the city-centre heat. The saved grid is there for that sweep; the model server runs a fresh case when the sliders leave the grid.
+
+### Neural surrogate
+
+A 12-neuron network trained on cell-transmission runs of these streets. Seven inputs describe a piece of the corridor: cars, bicycles, buses, lanes, signals, length, and whether bicycles are protected. Two outputs are the travel time and the share of demand that gets through. The holdout error, in minutes per street, is shown in the assumptions on the map.
+
+Use it to read a cell-transmission-like result without running the cell model, or to see how close this small network stays to the model it was trained on. The weights are fit in NumPy on this corridor only. Do not use it as a separate forecast, for another city, or for a street that was not in the training runs. It does not use NVIDIA PhysicsNeMo.
 
 ## What the scenario does
 
@@ -176,6 +198,7 @@ Everything below is data the publishers make available online. Each source keeps
 | [Comune di Bologna, Traffico viali](https://opendata.comune.bologna.it/explore/dataset/traffico-viali/) | Weekday 08:00–09:00 loop counts. The corridor demand is the median of the peak direction on Viale Ercolani (south, about 1,160 veh/h) and Viale Pietramellara (north-east, about 1,152 veh/h). | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna |
 | [Comune di Bologna, Rilevazione flussi bici](https://opendata.comune.bologna.it/explore/dataset/colonnine-conta-bici/) | Hourly bicycle counters. The run uses Stalingrado II, the counter nearest the corridor, on 23 September 2026, 08:00–09:00 local, peak direction 57 bikes/h. | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna |
 | [TPER GTFS, Bologna](https://solweb.tper.it/web/tools/open-data/open-data-download.aspx?source=solweb.tper.it&filename=gommagtfsbo&version=20260909&format=zip) | Weekday service on 23 September 2026, 08:00–09:00, at the Porta San Felice stop with the most trips (46 buses/h). Feed version `20260909`. | TPER open data, September 2026 | [CC BY 3.0 IT](https://creativecommons.org/licenses/by/3.0/it/) |
+| [Comune di Bologna, Centraline qualità dell’aria](https://opendata.comune.bologna.it/explore/dataset/centraline-qualita-aria/) | Hourly NO2 and PM10 means, 1 January–16 September 2026, at Porta San Felice, Giardini Margherita, and Via Chiarini. Station positions are the 2019 regional UTM coordinates. Stored in `public/air.json`. | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna, from ARPAE Emilia-Romagna |
 
 `public/catalog.json` and `data/surrogate.json` are computed from those inputs by the models in `sim/`.
 

@@ -4,6 +4,7 @@ import "./style.css";
 import { DEFAULTS, prepare, evaluate, finding } from "./model.js";
 import { caseKey, predictionSentence, reportHtml, downloadReport, searchBestSetup } from "./report.js";
 import { createHeat, hourCars } from "./heatmap.js";
+import { createAir } from "./air.js";
 import { withLines } from "./lines.js";
 import { createTraffic } from "./traffic.js";
 
@@ -17,6 +18,7 @@ const state = {
   model: "ctm",
   hour: 8,
   heatmap: false,
+  air: false,
   lines: ["rossa"],
   params: { ...DEFAULTS },
 };
@@ -37,6 +39,13 @@ try {
   if (response.ok) linesPlan = await response.json();
 } catch {
   linesPlan = null;
+}
+let airData = null;
+try {
+  const response = await fetch("/air.json");
+  if (response.ok) airData = await response.json();
+} catch {
+  airData = null;
 }
 let centre = null;
 try {
@@ -205,7 +214,7 @@ function paintHeat() {
     beforeCarFlow,
     activeLines: state.lines,
   });
-  document.getElementById("vehicles").classList.toggle("dim", state.heatmap);
+  document.getElementById("vehicles").classList.toggle("dim", state.heatmap || state.air);
   document.getElementById("heat-toggle").setAttribute("aria-pressed", String(state.heatmap));
   document.getElementById("heat-key").hidden = !state.heatmap;
   const open = state.lines.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
@@ -243,6 +252,7 @@ function paintRoutes() {
     }
   }
   paintHeat();
+  paintAir();
 }
 
 function formatMinutes(value) {
@@ -267,6 +277,7 @@ function assumptionText() {
     "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues. Bicycles stay on the corridor, including through the centre. Passenger service is expected in 2027. This is a scenario, not a forecast from the Comune.",
     linesPlan?.note,
     centre?.note,
+    airData?.note,
   ].filter(Boolean).join(" ");
 }
 
@@ -390,7 +401,7 @@ dayButton.addEventListener("click", () => {
     return;
   }
   const hours = (catalog?.hours || [{ hour: state.hour }]).map((slot) => slot.hour);
-  state.heatmap = true;
+  if (!state.air) state.heatmap = true;
   dayButton.textContent = "Stop the day";
   dayButton.setAttribute("aria-pressed", "true");
   let index = 0;
@@ -438,8 +449,54 @@ const heatToggle = document.getElementById("heat-toggle");
 if (!centre) heatToggle.hidden = true;
 heatToggle.addEventListener("click", () => {
   state.heatmap = !state.heatmap;
+  if (state.heatmap) state.air = false;
   paintHeat();
+  paintAir();
   if (state.heatmap && heat) heat.showCentre();
+});
+
+const airCanvas = document.getElementById("air");
+const air = centre && airData ? createAir(map, airCanvas, centre, linesPlan) : null;
+if (!air) document.getElementById("air-toggle").hidden = true;
+if (air) {
+  const airResize = () => {
+    air.resize();
+    paintAir();
+  };
+  airResize();
+  window.addEventListener("resize", airResize);
+}
+
+function paintAir() {
+  if (!air) return;
+  const current = shown();
+  air.paint({
+    air: state.air,
+    scenario: state.scenario,
+    cars: hourCars(catalog, state.hour),
+    peakCars: centre.peakCars,
+    carFlow: current[state.scenario].carFlow,
+    beforeCarFlow: current.before.carFlow,
+    activeLines: state.lines,
+    stations: airData.stations,
+  });
+  document.getElementById("vehicles").classList.toggle("dim", state.heatmap || state.air);
+  document.getElementById("air-toggle").setAttribute("aria-pressed", String(state.air));
+  document.getElementById("air-key").hidden = !state.air;
+  const serving = state.scenario === "after" && state.lines.length > 0;
+  const readings = airData.stations.map((station) => `${station.name} ${station.no2}`).join(" · ");
+  document.getElementById("air-note").textContent = state.air
+    ? serving
+      ? `Proxy down on open lines, up on the avenues. Measured NO2 stays put: ${readings} µg/m³.`
+      : `Measured NO2 stays put: ${readings} µg/m³. Street colour is a kerb exhaust proxy, not a plume.`
+    : "";
+}
+
+document.getElementById("air-toggle").addEventListener("click", () => {
+  state.air = !state.air;
+  if (state.air) state.heatmap = false;
+  paintHeat();
+  paintAir();
 });
 
 const shift = document.getElementById("shift");

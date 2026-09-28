@@ -32,7 +32,7 @@ body {
   z-index: 450;
 }
 
-#heat {
+#heat, #air {
   position: absolute;
   inset: 0;
   width: 100%;
@@ -139,7 +139,8 @@ h1 {
 
 #lines input { accent-color: currentColor; }
 
-#heat-toggle {
+#heat-toggle,
+#air-toggle {
   width: 100%;
   margin-top: 8px;
   appearance: none;
@@ -155,6 +156,7 @@ h1 {
 }
 
 #heat-toggle[aria-pressed="true"],
+#air-toggle[aria-pressed="true"],
 #play-day[aria-pressed="true"] {
   background: var(--ink);
   color: var(--paper);
@@ -176,7 +178,7 @@ h1 {
   cursor: pointer;
 }
 
-#heat-note {
+#heat-note, #air-note {
   min-height: 1.2em;
   margin: 5px 2px 0;
   color: var(--muted);
@@ -365,6 +367,16 @@ select {
   display: block;
   background: linear-gradient(90deg, #1f8a4c, #e0a100, #ef6c00, #9a3412);
 }
+
+.air-down, .air-up {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.air-down { background: #0e7490; }
+.air-up { background: #6d288c; margin-left: 8px; }
 
 .leaflet-control-attribution {
   font-size: 10px;

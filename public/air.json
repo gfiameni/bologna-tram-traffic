@@ -1,0 +1,37 @@
+{
+  "source": "https://opendata.comune.bologna.it/explore/dataset/centraline-qualita-aria/",
+  "licence": "CC BY 4.0",
+  "publisher": "Comune di Bologna, measurements from ARPAE Emilia-Romagna",
+  "period": "1 January\u201316 September 2026",
+  "unit": "\u00b5g/m\u00b3",
+  "note": "Hourly means at the three Bologna stations. Coordinates come from the 2019 regional station list, UTM zone 32N. The tram is not in passenger service, so these readings do not show a tram before and after. The street colour is a kerb exhaust proxy from the traffic model. It is not a plume and not a concentration forecast.",
+  "stations": [
+    {
+      "id": "porta-san-felice",
+      "name": "Porta San Felice",
+      "kind": "Urban traffic",
+      "lat": 44.500831,
+      "lon": 11.32864,
+      "no2": 23,
+      "pm10": 25
+    },
+    {
+      "id": "giardini-margherita",
+      "name": "Giardini Margherita",
+      "kind": "Urban background",
+      "lat": 44.484442,
+      "lon": 11.355176,
+      "no2": 13,
+      "pm10": 20
+    },
+    {
+      "id": "via-chiarini",
+      "name": "Via Chiarini",
+      "kind": "Suburban background",
+      "lat": 44.499179,
+      "lon": 11.285656,
+      "no2": 12,
+      "pm10": 16
+    }
+  ]
+}
