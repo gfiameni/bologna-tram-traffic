@@ -2,7 +2,7 @@
 
 A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigale through the historic centre to the Fiera (Michelino) and to Agraria at Pilastro. **Verde**, **Gialla**, and **Blu** switch on beside it. Each open line changes how many cars the scenario leaves on the street, and the city-centre heat follows.
 
-The map shows the city **before** the tram and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **City centre heat** paints the streets inside the viali. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
+The map shows the city **before** the tram and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **City centre heat** paints the streets inside the viali. **Air proxy** shows where that traffic model moves kerb exhaust, and leaves the measured NO2 at the three Bologna stations unchanged. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
 
 ![City centre heat before the tram, then with Rossa, Verde, Gialla, and Blu open](docs/preview.gif)
 
@@ -29,6 +29,12 @@ The same corridor at 21:00 has lighter car demand than the morning peak. Cell tr
 With the volume-delay model, moving the switch slider changes how many cars the model gets through. The centre heat follows that flow: 1,155 cars an hour at no switch, 578 when half of the drivers switch.
 
 ![Centre heat cooling as modeled car flow falls from 1,155 to 578 cars an hour](docs/heat-flow.gif)
+
+### Air proxy
+
+**Air proxy** keeps the measured NO2 at Porta San Felice, Giardini Margherita, and Via Chiarini. Street colour follows the traffic model: purple before the tram, then teal where an open line takes cars off the street and purple on the avenues that take those cars.
+
+![Air proxy before the tram, then with the lines open: less exhaust on the corridors, more on the avenues](docs/air.gif)
 
 ## Disclaimer
 
