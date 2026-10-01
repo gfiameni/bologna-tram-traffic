@@ -2,7 +2,7 @@
 
 A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigale through the historic centre to the Fiera (Michelino) and to Agraria at Pilastro. **Verde**, **Gialla**, and **Blu** switch on beside it. Each open line changes how many cars the scenario leaves on the street, and the city-centre heat follows.
 
-The map shows the city **before** the tram and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **City centre heat** paints the streets inside the viali. **Air proxy** shows where that traffic model moves kerb exhaust, and leaves the measured NO2 at the three Bologna stations unchanged. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
+The map shows the city **before** the tram and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **City centre heat** paints the streets inside the viali. **Air proxy** shows where that traffic model moves kerb exhaust, and leaves the measured NO2 at the three Bologna stations unchanged. **Pollution sensors** marks Porta San Felice, Giardini Margherita, and Via Chiarini. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
 
 ![City centre heat before the tram, then with Rossa, Verde, Gialla, and Blu open](docs/preview.gif)
 
@@ -36,6 +36,12 @@ With the volume-delay model, moving the switch slider changes how many cars the 
 
 ![Air proxy before the tram, then with the lines open: less exhaust on the corridors, more on the avenues](docs/air.gif)
 
+### Pollution sensors
+
+**Pollution sensors** places a marker on each measured station. Porta San Felice, Giardini Margherita, and Via Chiarini keep their measured NO2. The markers stay on those sites when the street-colour proxy changes.
+
+![Pollution sensors at Porta San Felice, Giardini Margherita, and Via Chiarini](docs/sensors.gif)
+
 ## Disclaimer
 
 This project is an illustration built from data that public agencies already publish on the web. The numbers on the map are the output of the models in this repository. They are not a forecast, a design study, or an official figure from the Comune di Bologna, TPER, the tram project, or any other authority.
@@ -46,7 +52,7 @@ A few inputs are assumptions, because the published data does not contain them:
 - Car demand is taken from boulevard loop detectors on Viale Ercolani and Viale Pietramellara, then applied to the corridor. Those loops are not on Via Emilia.
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00. The “with tram” scenario takes those buses off the alignment.
 - The city-centre heatmap uses OpenStreetMap streets inside the viali. The Comune counts cars on a few boulevards, not on every street. The selected model’s car flow scales the hourly boulevard demand across OSM road classes. With the tram, heat leaves the tram streets and sits on the avenues.
-- The air proxy is not a pollution plume. The three ARPAE stations in Bologna keep their measured NO2. Street colour follows the traffic model: exhaust falls where cars leave an open tram line and rises on the avenues that take those cars. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service, so there is no measured before and after.
+- The air proxy is not a pollution plume. The three ARPAE stations in Bologna keep their measured NO2. Street colour follows the traffic model: exhaust falls where cars leave an open tram line and rises on the avenues that take those cars. **Pollution sensors** draws those three stations on the map. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service, so there is no measured before and after.
 - Verde, Gialla, and Blu are the other lines named on [trambologna.it](https://www.trambologna.it/). Each checkbox opens that corridor. Rossa uses the saved traffic model. Each extra open line takes a further share of cars off the street in the “with the tram” scenario and draws that corridor on the heatmap. That share is a scenario, not a second city-wide assignment.
 - Car occupancy (1.3 people) and a full bus (45 people, 90 seats of capacity) are modelling choices.
 - Where a cycle track already runs along most of a street in OpenStreetMap, bicycles are treated as protected. The scenario does not add new cycle tracks.

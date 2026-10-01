@@ -35,6 +35,11 @@ export function airPaintValue(sample, view) {
   return { mode: delta > 0 ? "up" : "down", value: Math.min(1, Math.abs(delta) / 0.45) };
 }
 
+export function stationSummary(station) {
+  const kind = station.kind ? `${station.kind}. ` : "";
+  return `${kind}NO2 ${station.no2} µg/m³, PM10 ${station.pm10} µg/m³.`;
+}
+
 function airColor(mode) {
   if (mode === "down") return [14, 116, 144];
   if (mode === "up") return [109, 40, 140];

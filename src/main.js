@@ -4,7 +4,7 @@ import "./style.css";
 import { DEFAULTS, prepare, evaluate, finding } from "./model.js";
 import { caseKey, predictionSentence, reportHtml, downloadReport, searchBestSetup } from "./report.js";
 import { createHeat, hourCars } from "./heatmap.js";
-import { createAir } from "./air.js";
+import { createAir, stationSummary } from "./air.js";
 import { withLines } from "./lines.js";
 import { createTraffic } from "./traffic.js";
 
@@ -19,6 +19,7 @@ const state = {
   hour: 8,
   heatmap: false,
   air: false,
+  sensors: false,
   lines: ["rossa"],
   params: { ...DEFAULTS },
 };
@@ -170,6 +171,43 @@ if (linesPlan) {
     extraLayers.push({ id: line.id, layers });
   }
 }
+
+map.createPane("sensors");
+const sensorPane = map.getPane("sensors");
+sensorPane.style.zIndex = "640";
+sensorPane.style.pointerEvents = "none";
+
+const sensorLayer = airData?.stations?.length
+  ? L.layerGroup(airData.stations.map((station) => {
+    const direction = {
+      "via-chiarini": "left",
+      "porta-san-felice": "bottom",
+      "giardini-margherita": "right",
+    }[station.id] || "right";
+    const offset = {
+      left: [-8, 0],
+      top: [0, -10],
+      bottom: [0, 10],
+      right: [8, 0],
+    }[direction];
+    const marker = L.circleMarker([station.lat, station.lon], {
+      pane: "sensors",
+      radius: 7,
+      color: "#f4efe4",
+      weight: 2,
+      fillColor: "#4c1d95",
+      fillOpacity: 1,
+    });
+    marker.bindTooltip(station.name, {
+      permanent: true,
+      direction,
+      className: "sensor-tip",
+      offset,
+    });
+    marker.bindPopup(`<strong>${station.name}</strong><br>${stationSummary(station)}`);
+    return marker;
+  }))
+  : null;
 
 const bounds = L.latLngBounds(network.stops.map((stop) => [stop.lat, stop.lon]));
 map.fitBounds(bounds, {
@@ -497,6 +535,23 @@ document.getElementById("air-toggle").addEventListener("click", () => {
   if (state.air) state.heatmap = false;
   paintHeat();
   paintAir();
+});
+
+const sensorsToggle = document.getElementById("sensors-toggle");
+if (!sensorLayer) sensorsToggle.hidden = true;
+function paintSensors() {
+  if (!sensorLayer) return;
+  sensorsToggle.setAttribute("aria-pressed", String(state.sensors));
+  document.getElementById("sensor-key").hidden = !state.sensors;
+  document.getElementById("sensor-note").textContent = state.sensors
+    ? `${airData.stations.map((station) => `${station.name} NO2 ${station.no2}`).join(" · ")} µg/m³. These dots are the measured stations.`
+    : "";
+  if (state.sensors) sensorLayer.addTo(map);
+  else map.removeLayer(sensorLayer);
+}
+sensorsToggle.addEventListener("click", () => {
+  state.sensors = !state.sensors;
+  paintSensors();
 });
 
 const shift = document.getElementById("shift");
