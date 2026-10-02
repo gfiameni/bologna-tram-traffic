@@ -187,22 +187,28 @@ export function evaluate(geo, params) {
   return out;
 }
 
-/** Rounded change in the car trip to the Fiera, with "slower", "faster", or "same". */
-export function carChange(result) {
-  const minutes = result.after.carFieraMin - result.before.carFieraMin;
+/** Rounded change in one car trip, with "slower", "faster", or "same". */
+export function carChange(result, key = "carFieraMin") {
+  const minutes = result.after[key] - result.before[key];
   const rounded = Math.round(minutes);
   const verdict = minutes >= 1 ? "slower" : minutes <= -1 ? "faster" : "same";
   return { minutes, rounded, verdict };
 }
 
 export function finding(result, { lang = "en", car = true } = {}) {
-  const { rounded, verdict } = carChange(result);
+  const fiera = carChange(result, "carFieraMin");
+  const agraria = carChange(result, "carPilastroMin");
   const peopleDelta = result.after.peoplePerHour - result.before.peoplePerHour;
   const carText = {
-    slower: tr(lang, "finding.carSlower", { n: rounded }),
-    faster: tr(lang, "finding.carFaster", { n: Math.abs(rounded) }),
+    slower: tr(lang, "finding.carSlower", { n: fiera.rounded }),
+    faster: tr(lang, "finding.carFaster", { n: Math.abs(fiera.rounded) }),
     same: tr(lang, "finding.carSame"),
-  }[verdict];
+  }[fiera.verdict];
+  const agrariaText = {
+    slower: tr(lang, "finding.agrariaSlower", { n: agraria.rounded }),
+    faster: tr(lang, "finding.agrariaFaster", { n: Math.abs(agraria.rounded) }),
+    same: tr(lang, "finding.agrariaSame"),
+  }[agraria.verdict];
   const peopleText = peopleDelta >= 0
     ? tr(lang, "finding.peopleMore", { n: count(lang, peopleDelta) })
     : tr(lang, "finding.peopleFewer", { n: count(lang, Math.abs(peopleDelta)) });
@@ -213,5 +219,5 @@ export function finding(result, { lang = "en", car = true } = {}) {
   const flowText = flowDrop > 40
     ? tr(lang, "finding.flow", { n: count(lang, result.after.carFlow) })
     : "";
-  return `${car ? `${carText}. ` : ""}${peopleText}.${waiting}${flowText}`;
+  return `${car ? `${carText}. ${agrariaText}. ` : ""}${peopleText}.${waiting}${flowText}`;
 }

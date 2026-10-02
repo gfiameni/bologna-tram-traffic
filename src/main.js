@@ -359,6 +359,8 @@ function paintCar(current) {
   const { before, after } = current;
   document.getElementById("car-before").textContent = `${Math.round(before.carFieraMin)}`;
   document.getElementById("car-after").textContent = `${Math.round(after.carFieraMin)}`;
+  document.getElementById("car-agraria-before").textContent = `${Math.round(before.carPilastroMin)}`;
+  document.getElementById("car-agraria-after").textContent = `${Math.round(after.carPilastroMin)}`;
   if (!state.lines.includes("rossa")) {
     verdictNode.dataset.verdict = "same";
     verdictNode.querySelector("strong").textContent = t("car.same");
@@ -367,10 +369,26 @@ function paintCar(current) {
     compare.textContent = "";
     return;
   }
-  const change = carChange(current);
-  verdictNode.dataset.verdict = change.verdict;
-  verdictNode.querySelector("strong").textContent = t(`car.${change.verdict}`);
-  verdictNode.querySelector("span").textContent = t(`car.${change.verdict}Text`, { n: Math.abs(change.rounded) });
+  const change = carChange(current, "carFieraMin");
+  const agraria = carChange(current, "carPilastroMin");
+  const verdict = change.verdict === agraria.verdict
+    ? change.verdict
+    : change.verdict === "same"
+      ? agraria.verdict
+      : agraria.verdict === "same"
+        ? change.verdict
+        : "mixed";
+  const leg = (item) => {
+    if (item.verdict === "slower") return t("car.deltaLonger", { n: item.rounded });
+    if (item.verdict === "faster") return t("car.deltaSooner", { n: Math.abs(item.rounded) });
+    return t("car.deltaSame");
+  };
+  verdictNode.dataset.verdict = verdict;
+  verdictNode.querySelector("strong").textContent = t(`car.${verdict}`);
+  verdictNode.querySelector("span").textContent = t("car.mixedText", {
+    fiera: leg(change),
+    agraria: leg(agraria),
+  });
   const vBefore = Math.round(before.viaEmiliaKmh);
   const vAfter = Math.round(after.viaEmiliaKmh);
   why.textContent = t(vBefore === vAfter ? "car.whyFlat" : "car.why", {

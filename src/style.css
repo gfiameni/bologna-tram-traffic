@@ -165,11 +165,17 @@ h1 {
 .hero {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 10px;
+  gap: 2px 10px;
+}
+
+.hero .trip {
+  grid-column: 1 / -1;
+  margin: 10px 0 0;
+  font-size: 14px;
 }
 
 .hero div {
-  padding: 8px 0 2px;
+  padding: 2px 0 2px;
 }
 
 .hero span {

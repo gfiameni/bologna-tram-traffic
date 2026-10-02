@@ -26,7 +26,7 @@
       </div>
       <h1 data-i18n-html="page.heading">Bologna<br>tram network</h1>
       <p class="lede" data-i18n="page.lede">
-        Traffic with the planned tram lines. Rossa is the modelled corridor, from Borgo Panigale through the centre to the Fiera and Agraria. Verde, Gialla, and Blu can be opened on top of it.
+        The planned network is Rossa, Verde, Gialla, and Blu. The travel times are from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria. Each open line takes cars off the street.
       </p>
       <div class="switch" role="group" aria-label="Map scenario" data-i18n-aria="scenario.group">
         <button type="button" id="show-before" aria-pressed="true" data-i18n="scenario.before">Before the tram</button>
@@ -44,14 +44,24 @@
       <p id="heat-note" aria-live="polite"></p>
       <p id="air-note" aria-live="polite"></p>
       <p id="sensor-note" aria-live="polite"></p>
-      <p class="kicker" data-i18n="car.kicker">Car trip to the Fiera</p>
+      <p class="kicker" data-i18n="car.kicker">Car</p>
       <div class="hero" aria-live="polite">
+        <p class="trip" data-i18n="trip.fiera">Emilio Lepido to the Fiera</p>
         <div>
           <span id="car-before">—</span>
           <small data-i18n="car.before">min before</small>
         </div>
         <div>
           <span id="car-after">—</span>
+          <small data-i18n="car.after">min with tram</small>
+        </div>
+        <p class="trip" data-i18n="trip.agraria">Emilio Lepido to Agraria</p>
+        <div>
+          <span id="car-agraria-before">—</span>
+          <small data-i18n="car.before">min before</small>
+        </div>
+        <div>
+          <span id="car-agraria-after">—</span>
           <small data-i18n="car.after">min with tram</small>
         </div>
       </div>
@@ -68,11 +78,11 @@
           </tr>
         </thead>
         <tbody>
-          <tr data-key="carFieraMin"><th data-i18n="row.carFieraMin">Car to the Fiera</th><td></td><td></td></tr>
-          <tr data-key="carPilastroMin"><th data-i18n="row.carPilastroMin">Car to Agraria</th><td></td><td></td></tr>
-          <tr data-key="bikeFieraMin"><th data-i18n="row.bikeFieraMin">Bicycle to the Fiera</th><td></td><td></td></tr>
-          <tr data-key="transitFieraMin"><th data-i18n="row.transitFieraMin">Transit to the Fiera</th><td></td><td></td></tr>
-          <tr data-key="transitPilastroMin"><th data-i18n="row.transitPilastroMin">Transit to Agraria</th><td></td><td></td></tr>
+          <tr data-key="carFieraMin"><th data-i18n="row.carFieraMin">Car, Emilio Lepido to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="carPilastroMin"><th data-i18n="row.carPilastroMin">Car, Emilio Lepido to Agraria</th><td></td><td></td></tr>
+          <tr data-key="bikeFieraMin"><th data-i18n="row.bikeFieraMin">Bicycle, Emilio Lepido to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="transitFieraMin"><th data-i18n="row.transitFieraMin">Transit, Emilio Lepido to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="transitPilastroMin"><th data-i18n="row.transitPilastroMin">Transit, Emilio Lepido to Agraria</th><td></td><td></td></tr>
           <tr data-key="viaEmiliaKmh"><th data-i18n="row.viaEmiliaKmh">Car speed on Via Emilia</th><td></td><td></td></tr>
           <tr data-key="carFlow"><th data-i18n="row.carFlow">Cars / hour through San Felice</th><td></td><td></td></tr>
           <tr data-key="peoplePerHour"><th data-i18n="row.peoplePerHour">People / hour at San Felice</th><td></td><td></td></tr>

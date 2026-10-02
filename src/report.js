@@ -33,7 +33,7 @@ export function predictionSentence(modelLabel, hourLabel, best) {
   const carChange = extra > 0 ? `${extra} min longer` : extra < 0 ? `${Math.abs(extra)} min shorter` : "about the same";
   const people = Math.round(best.after.peoplePerHour).toLocaleString("en-GB");
   const waiting = Math.round(best.after.unserved).toLocaleString("en-GB");
-  return `${modelLabel} for ${hourLabel}: ${shiftPct}% of drivers switch, tram every ${best.headwayMin} min. ${people} people an hour pass San Felice, ${waiting} are left waiting, and the car trip to the Fiera is ${carChange}.`;
+  return `${modelLabel} for ${hourLabel}: ${shiftPct}% of drivers switch, tram every ${best.headwayMin} min. ${people} people an hour pass San Felice, ${waiting} are left waiting, and the car trip from Emilio Lepido to the Fiera is ${carChange}.`;
 }
 
 function escapeHtml(value) {
@@ -53,11 +53,11 @@ function count(value) {
 }
 
 const METRICS = [
-  ["Car to the Fiera", "carFieraMin", true],
-  ["Car to Agraria", "carPilastroMin", true],
-  ["Bicycle to the Fiera", "bikeFieraMin", true],
-  ["Transit to the Fiera", "transitFieraMin", true],
-  ["Transit to Agraria", "transitPilastroMin", true],
+  ["Car, Emilio Lepido to the Fiera", "carFieraMin", true],
+  ["Car, Emilio Lepido to Agraria", "carPilastroMin", true],
+  ["Bicycle, Emilio Lepido to the Fiera", "bikeFieraMin", true],
+  ["Transit, Emilio Lepido to the Fiera", "transitFieraMin", true],
+  ["Transit, Emilio Lepido to Agraria", "transitPilastroMin", true],
   ["Car speed on Via Emilia", "viaEmiliaKmh", false],
   ["Cars / hour through San Felice", "carFlow", false],
   ["People / hour at San Felice", "peoplePerHour", false],
@@ -138,9 +138,9 @@ export function reportHtml({
       <tbody>${comparison}</tbody>
     </table>
     <h2>Setups compared</h2>
-    <p class="note">The search ranks saved switch shares and tram frequencies for this model and hour. It favours more people through San Felice, a shorter waiting queue, less extra car time to the Fiera, and a tram that still has room.</p>
+    <p class="note">The search ranks saved switch shares and tram frequencies for this model and hour. It favours more people through San Felice, a shorter waiting queue, less extra car time from Emilio Lepido to the Fiera, and a tram that still has room.</p>
     <table>
-      <thead><tr><th>Switch</th><th>Tram every</th><th>People / hour</th><th>Waiting</th><th>Car to the Fiera</th><th></th></tr></thead>
+      <thead><tr><th>Switch</th><th>Tram every</th><th>People / hour</th><th>Waiting</th><th>Emilio Lepido to the Fiera</th><th></th></tr></thead>
       <tbody>${setups}</tbody>
     </table>
     <h2>What the numbers rest on</h2>
