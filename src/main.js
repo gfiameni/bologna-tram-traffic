@@ -165,6 +165,7 @@ const centreLine = L.polyline(sliceLatLngs(geo.pieces.tram.trunk, geo.screenS, c
   interactive: false,
 }).addTo(map);
 
+const stopLayer = L.layerGroup();
 for (const stop of network.stops) {
   L.circleMarker([stop.lat, stop.lon], {
     radius: 4,
@@ -172,7 +173,7 @@ for (const stop of network.stops) {
     weight: 1,
     fillColor: "#fffaf3",
     fillOpacity: 1,
-  }).bindTooltip(stop.name, { direction: "top", offset: [0, -6] }).addTo(map);
+  }).bindTooltip(stop.name, { direction: "top", offset: [0, -6] }).addTo(stopLayer);
 }
 
 const extraLayers = [];
@@ -298,17 +299,15 @@ function paintRoutes() {
     line.setStyle({ color: congestionColor(speeds[name]) });
   }
   const rossaOn = state.scenario === "after" && state.lines.includes("rossa");
-  for (const line of plannedLines) line.setStyle({ opacity: rossaOn ? 0 : 0.75 });
+  for (const line of plannedLines) line.setStyle({ opacity: 0 });
   centreLine.setStyle({ opacity: rossaOn ? 1 : 0 });
+  if (rossaOn) stopLayer.addTo(map);
+  else stopLayer.remove();
   const after = state.scenario === "after";
   for (const item of extraLayers) {
-    const on = state.lines.includes(item.id);
+    const shown = after && state.lines.includes(item.id);
     for (const layer of item.layers) {
-      layer.setStyle({
-        opacity: on ? (after ? 0.95 : 0.45) : 0.18,
-        weight: on && after ? 5 : 3,
-        dashArray: on && after ? null : "5 8",
-      });
+      layer.setStyle({ opacity: shown ? 0.95 : 0, weight: 5, dashArray: null });
     }
   }
   paintHeat();
