@@ -43,6 +43,11 @@ body {
   opacity: 0;
 }
 
+#heat.in-pane {
+  inset: auto;
+  z-index: 1;
+}
+
 #vehicles.dim { opacity: 0.35; }
 
 #panel {

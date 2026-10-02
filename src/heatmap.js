@@ -10,8 +10,9 @@ export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCar
   const active = activeLines || ["rossa"];
   const serving = scenario === "after" && active.length > 0;
   if (sample.line) {
+    const busy = Math.min(1, (sample.rank || 0.7) * hour);
     if (serving && active.includes(sample.line)) return 0.22;
-    return 0;
+    return busy;
   }
   if (sample.tram && serving && active.includes("rossa")) return Math.min(1, 0.08 * hour * flowRatio);
   if (sample.tram && !serving) return Math.min(1, rank * hour);
@@ -34,7 +35,7 @@ export function createHeat(map, canvas, centre, plan) {
   const ctx = canvas.getContext("2d");
   const samples = [
     ...(centre.samples || []),
-    ...(plan?.lines || []).filter((line) => line.id !== "rossa").flatMap((line) => line.samples || []),
+    ...(plan?.lines || []).flatMap((line) => line.samples || []),
   ];
 
   function resize() {
@@ -44,13 +45,28 @@ export function createHeat(map, canvas, centre, plan) {
     ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
   }
 
+  const pane = map.createPane("citytraffic");
+  pane.style.zIndex = 250;
+  pane.appendChild(canvas);
+  canvas.classList.add("in-pane");
+
+  function place() {
+    const size = map.getSize();
+    canvas.style.width = `${size.x}px`;
+    canvas.style.height = `${size.y}px`;
+    const topLeft = map.containerPointToLayerPoint([0, 0]);
+    canvas.style.transform = `translate3d(${topLeft.x}px, ${topLeft.y}px, 0)`;
+  }
+
   function paint(view) {
+    place();
+    resize();
     ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
     canvas.style.opacity = view.heatmap ? "0.9" : "0";
     if (!view.heatmap || !samples.length) return;
     const zoom = map.getZoom();
-    const stride = zoom >= 15 ? 1 : zoom >= 14 ? 2 : 3;
-    const radius = Math.max(11, Math.min(30, 12 * 2 ** (zoom - 14)));
+    const stride = zoom >= 14 ? 1 : 2;
+    const radius = Math.max(16, Math.min(34, 18 * 2 ** (zoom - 13)));
     const size = canvas.clientWidth;
     const height = canvas.clientHeight;
     ctx.globalCompositeOperation = "lighter";

@@ -18,7 +18,7 @@ const state = {
   timeScale: 40,
   model: "ctm",
   hour: 8,
-  heatmap: false,
+  heatmap: true,
   air: false,
   sensors: false,
   lines: ["rossa"],
@@ -217,6 +217,9 @@ const sensorLayer = airData?.stations?.length
   : null;
 
 const bounds = L.latLngBounds(network.stops.map((stop) => [stop.lat, stop.lon]));
+for (const line of linesPlan?.lines || []) {
+  for (const segment of line.segments || []) bounds.extend(segment);
+}
 map.fitBounds(bounds, {
   paddingTopLeft: [window.innerWidth > 800 ? 430 : 24, 24],
   paddingBottomRight: [24, 70],
@@ -262,12 +265,9 @@ function paintHeat() {
   document.getElementById("vehicles").classList.toggle("dim", state.heatmap || state.air);
   document.getElementById("heat-toggle").setAttribute("aria-pressed", String(state.heatmap));
   document.getElementById("heat-key").hidden = !state.heatmap;
-  const open = state.lines.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
+  const serving = state.scenario === "after" && state.lines.length > 0;
   document.getElementById("heat-note").textContent = state.heatmap
-    ? t("heat.note", {
-      n: count(state.lang, carFlow),
-      open: state.scenario === "after" && open.length ? t("heat.open", { names: joinNames(state.lang, open) }) : "",
-    })
+    ? t(serving ? "heat.after" : "heat.before", { n: count(state.lang, carFlow) })
     : "";
 }
 
@@ -608,7 +608,6 @@ heatToggle.addEventListener("click", () => {
   if (state.heatmap) state.air = false;
   paintHeat();
   paintAir();
-  if (state.heatmap && heat) heat.showCentre();
 });
 
 const airCanvas = document.getElementById("air");
