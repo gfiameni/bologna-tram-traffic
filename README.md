@@ -1,22 +1,26 @@
 # Bologna tram traffic
 
-A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigale through the historic centre to the Fiera (Michelino) and to Agraria at Pilastro. **Verde**, **Gialla**, and **Blu** switch on beside it. Each open line changes how many cars the scenario leaves on the street, and the city-centre heat follows.
+A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigale through the historic centre to the Fiera (Michelino) and to Agraria at Pilastro. **Verde**, **Gialla**, and **Blu** switch on beside it.
 
-The map shows the city **before** the tram and **with** the tram. Pick a time of day and a model, then move the sliders for how many drivers switch and how often the tram runs. **City centre heat** paints the streets inside the viali. **Air proxy** shows where that traffic model moves kerb exhaust, and leaves the measured NO2 at the three Bologna stations unchanged. **Pollution sensors** marks Porta San Felice, Giardini Margherita, and Via Chiarini. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
+The map has three views. **Before** is the city with no tram: the glow is car traffic, and no tram line is drawn. **After** draws each line you tick and shows the traffic with those trams. **Compare** keeps the lines and colours the glow by the change, green where fewer cars remain and dark red where more cars gather. An open line clears its own street. Cars that stay move onto the avenues and the bypass.
 
-![City centre heat before the tram, then with Rossa, Verde, Gialla, and Blu open](docs/preview.gif)
+Travel times are modelled only from Emilio Lepido to the Fiera and to Agraria. Verde, Gialla, and Blu change where the cars go, the exhaust proxy, and the traffic-noise estimate. They do not have their own trip times.
+
+Pick a time of day and a model. On After and Compare, move the sliders for how many drivers switch and how often the tram runs. Every tram gets the junction, so a shorter gap leaves cars less of the 40 seconds of green and the car trips get longer. **City traffic** paints that congestion across the centre, the four corridors, and the bypass. **Air proxy** shows where the traffic model moves kerb exhaust, and leaves the measured NO2 at the three Bologna stations unchanged. **Pollution sensors** marks Porta San Felice, Giardini Margherita, and Via Chiarini. The panel also gives a traffic-noise estimate from the change in car volume. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
+
+![Before, with no tram line, then After with Rossa, then Compare](docs/preview.gif)
 
 ### Planned lines
 
-Rossa starts on. Opening Verde, Gialla, and Blu draws those corridors and lowers the cars that remain. Closing them returns the Rossa-only result. In the morning cell-transmission case the heat note moves from 246 cars an hour to 182, then back to 246.
+Rossa starts on. Opening Verde, Gialla, and Blu draws those corridors and takes a further share of cars off the street. Closing them returns the Rossa-only result. In the morning cell-transmission case, with a quarter of drivers already on Rossa, the cars that get through San Felice move from 246 an hour to 182 when all four lines are open, then back to 246.
 
-![Verde, Gialla, and Blu opening, then closing, with the centre heat and the car count](docs/lines.gif)
+![Verde, Gialla, and Blu opening, then closing](docs/lines.gif)
 
 ### Time of day
 
-The same corridor at 21:00 has lighter car demand than the morning peak. Cell transmission lets more cars through San Felice, at a higher speed, once the signals are no longer saturated.
+At 21:00 the same cell-transmission case asks for fewer cars than the morning peak. With a quarter of drivers switching, demand falls from 866 cars an hour to 351, and the queue at San Felice falls from 620 to 105. The glow on the streets goes quieter with that lighter demand.
 
-![Evening demand on the corridor, with the time-of-day control set to 21:00](docs/time-of-day.gif)
+![Evening demand, with the time-of-day control set to 21:00](docs/time-of-day.gif)
 
 ### Best setup
 
@@ -26,7 +30,7 @@ The same corridor at 21:00 has lighter car demand than the morning peak. Cell tr
 
 ### Heat and car flow
 
-With the volume-delay model, moving the switch slider changes how many cars the model gets through. The centre heat follows that flow: 1,155 cars an hour at no switch, 578 when half of the drivers switch.
+With the volume-delay model, moving the switch slider changes how many cars the model gets through. The car-traffic glow follows that flow: 1,155 cars an hour at no switch, 578 when half of the drivers switch. In this model every one of those cars gets through, and the extra delay shows up in the trip time.
 
 ![Centre heat cooling as modeled car flow falls from 1,155 to 578 cars an hour](docs/heat-flow.gif)
 
@@ -48,12 +52,13 @@ This project is an illustration built from data that public agencies already pub
 
 A few inputs are assumptions, because the published data does not contain them:
 
-- Traffic-signal **positions** come from OpenStreetMap. Signal **timings** do not. Every junction is treated as a 90 second cycle with 40 seconds of green for the corridor.
+- Traffic-signal **positions** come from OpenStreetMap. Signal **timings** do not. Every junction starts as a 90 second cycle with 40 seconds of green. With the tram, each passage holds the junction for 18 seconds in both directions, taken from that green, so a shorter gap leaves cars less green. The bypass keeps the fixed cycle.
 - Car demand is taken from boulevard loop detectors on Viale Ercolani and Viale Pietramellara, then applied to the corridor. Those loops are not on Via Emilia.
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00. The “with tram” scenario takes those buses off the alignment.
-- The city-centre heatmap uses OpenStreetMap streets inside the viali. The Comune counts cars on a few boulevards, not on every street. The selected model’s car flow scales the hourly boulevard demand across OSM road classes. With the tram, heat leaves the tram streets and sits on the avenues.
+- The car-traffic glow uses OpenStreetMap streets inside the viali, samples along the four planned lines, and the bypass around the centre. The Comune counts cars on a few boulevards, not on every street. The selected model’s car flow scales the hourly boulevard demand across those streets. With the tram, the glow leaves an open line and sits on the avenues and the bypass.
 - The air proxy is not a pollution plume. The three ARPAE stations in Bologna keep their measured NO2. Street colour follows the traffic model: exhaust falls where cars leave an open tram line and rises on the avenues that take those cars. **Pollution sensors** draws those three stations on the map. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service, so there is no measured before and after.
-- Verde, Gialla, and Blu are the other lines named on [trambologna.it](https://www.trambologna.it/). Each checkbox opens that corridor. Rossa uses the saved traffic model. Each extra open line takes a further share of cars off the street in the “with the tram” scenario and draws that corridor on the heatmap. That share is a scenario, not a second city-wide assignment.
+- Traffic noise is an estimate from car volume, ten times the log of the change. It is not a measurement, and it leaves out the sound of the tram itself.
+- Verde, Gialla, and Blu are the other lines named on [trambologna.it](https://www.trambologna.it/). Each checkbox opens that corridor on the After and Compare views. Rossa uses the saved traffic model. Each extra open line takes a further share of cars off its street and cools the glow there. That share is a scenario, not a second city-wide assignment, and those three lines do not change the Emilio Lepido trip times.
 - Car occupancy (1.3 people) and a full bus (45 people, 90 seats of capacity) are modelling choices.
 - Where a cycle track already runs along most of a street in OpenStreetMap, bicycles are treated as protected. The scenario does not add new cycle tracks.
 
@@ -163,25 +168,25 @@ The neural model is fit to this corridor’s cell-transmission runs. It is not a
 
 ## Models
 
-The map starts on **cell transmission**. The other three answer a different question about the same corridor, the same hours, and the same before/after scenario. **Predict best setup** searches only the model that is selected, so the recommended switch and tram frequency can change when the model changes. Tram frequency changes how many people can board. It does not change the car physics. Verde, Gialla, and Blu are a further share of cars taken off the street on top of whichever model is selected.
+The map starts on **cell transmission**. The other three answer a different question about the same corridor, the same hours, and the same before/after scenario. **Predict best setup** searches only the model that is selected, so the recommended switch and tram frequency can change when the model changes. Tram frequency changes how many people can board. It also changes how long cars wait: every tram gets the junction, so a shorter gap leaves cars less of the 40 seconds of green and lengthens the car trips. The tram’s onboard time does not include that wait. Verde, Gialla, and Blu are a further share of cars taken off the street on top of whichever model is selected.
 
 ### Volume-delay
 
 A BPR curve plus Webster delay at each signal. Every car that is sent down the street is assumed to get through. Crowding shows up as a lower speed and a longer trip, not as a queue that stops some of the demand.
 
-Use it for a first look at travel time: what happens to the Via Emilia speed when a lane is given to the tracks, or when more drivers switch. Also use it when the centre heat should follow the switch slider. In this model the cars per hour are the demand that remains, so moving the slider from no switch to half the drivers changes the morning heat from about 1,155 to 578 cars an hour. Do not use it to ask whether the signals can clear the peak. They always can, in this curve, and the trip simply takes longer.
+Use it for a first look at travel time: what happens to the Via Emilia speed when a lane is given to the tracks, or when more drivers switch. Also use it when the car-traffic glow should follow the switch slider. In this model the cars per hour are the demand that remains, so moving the slider from no switch to half the drivers changes the morning glow from about 1,155 to 578 cars an hour. Do not use it to ask whether the signals can clear the peak. They always can, in this curve, and the trip simply takes longer.
 
 ### Cell transmission
 
 Daganzo’s cell model, and the default on the map. The street is split into cells of about 50 metres. Each cell sends cars forward only when the next cell has room, and a red signal stops the cell in front of it. If the green time cannot clear the arrivals, the cars that do not fit stay in the queue and fewer of them pass Porta San Felice.
 
-Use it when the question is capacity: the morning peak, a lane taken for the tracks, or how many cars an hour the corridor can still carry. On this street the morning greens are already full, so the after-tram flow stays near 246 cars an hour across the switch slider. The heat then changes with the hour of the day more than with the slider. The neural surrogate is trained on this model, so cell transmission is also the reference when checking that surrogate.
+Use it when the question is capacity: the morning peak, a lane taken for the tracks, or how many cars an hour the corridor can still carry. On this street the morning greens are already full, so the cars that get through San Felice stay near 246 an hour across the switch slider. Demand falls when drivers switch, and the queue is what is left over. At no switch the queue grows, because the same green lets fewer cars through while demand stays put. The glow then changes with the hour of the day more than with the slider. The neural surrogate is trained on this model, so cell transmission is also the reference when checking that surrogate.
 
 ### Car following
 
 The Intelligent Driver Model. Cars, buses, and bicycles are individual vehicles. A bus dwells at each stop. A bicycle rides in the traffic, or at its own speed where OpenStreetMap already shows a cycle track along most of the street. Acceleration is a Warp kernel, with a NumPy twin used for the saved catalog.
 
-Use it when the mix of vehicles matters: a bus stopped in the lane, bicycles sharing the street, or the stop-and-go that a red light starts. It is the closest of the four to the animation on the map. It is a slow run of one corridor, so it is a poor choice for a quick sweep of the city-centre heat. The saved grid is there for that sweep; the model server runs a fresh case when the sliders leave the grid.
+Use it when the mix of vehicles matters: a bus stopped in the lane, bicycles sharing the street, or the stop-and-go that a red light starts. It is the closest of the four to the animation on the map. It is a slow run of one corridor, so it is a poor choice for a quick sweep of the city-wide glow. The saved grid is there for that sweep; the model server runs a fresh case when the sliders leave the grid.
 
 ### Neural surrogate
 
@@ -193,9 +198,10 @@ Use it to read a cell-transmission-like result without running the cell model, o
 
 Eastbound traffic in the weekday morning peak.
 
-- **Before:** cars and the buses that pass Porta San Felice share the street. Bicycles use the corridor, including the centre.
-- **With the tram:** those buses leave the alignment, a chosen share of drivers switch, and streets where the tracks run give up a lane. Cars go around the historic centre on the avenues. The tram runs on a timetable (about 7.6 m/s, 26 seconds at each stop). Bicycles stay.
-- **Other lines:** Verde, Gialla, and Blu can be opened with Rossa. Each one takes a further share of cars off the street in this scenario and cools the heatmap along that corridor. Rossa remains the corridor with the full traffic model.
+- **Before:** no tram is drawn. Cars and the buses that pass Porta San Felice share the street. Bicycles use the corridor, including the centre. The glow is that car traffic.
+- **After:** the lines you tick are drawn. Those buses leave the alignment, a chosen share of drivers switch, and streets where the tracks run give up a lane. Every tram gets the junction. Cars go around the historic centre on the avenues and the bypass. The tram runs on a timetable (about 7.6 m/s, 26 seconds at each stop). Bicycles stay.
+- **Compare:** the After map, with before-to-after numbers, and a glow that shows where car traffic fell and where it rose.
+- **Other lines:** Verde, Gialla, and Blu can be opened with Rossa. Each one takes a further share of cars off its street and cools the glow along that corridor. Rossa remains the corridor with the full traffic model.
 
 The extract shipped with the repository, built from the sources below, uses about 1,156 cars an hour, 46 buses an hour at Porta San Felice, and 57 bicycles an hour at the Stalingrado counter.
 
@@ -205,7 +211,7 @@ Everything below is data the publishers make available online. Each source keeps
 
 | Source | What this project uses | Retrieved | Licence |
 | --- | --- | --- | --- |
-| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Named streets for the corridor, the four planned lines, highways inside the viali for the heatmap, traffic-signal positions, cycleways, bus-stop positions. Stored in `public/network.json`, `public/lines.json`, `public/centre.json`, and in the signal and stop lists inside `data/supply.json`. | Overpass, September 2026 | [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) |
+| [OpenStreetMap](https://www.openstreetmap.org/copyright) | Named streets for the corridor, the four planned lines, highways inside the viali and the bypass for the car-traffic glow, traffic-signal positions, cycleways, bus-stop positions. Stored in `public/network.json`, `public/lines.json`, `public/centre.json`, and in the signal and stop lists inside `data/supply.json`. | Overpass, September 2026 | [ODbL 1.0](https://opendatacommons.org/licenses/odbl/1-0/) |
 | [Tram Bologna](https://www.trambologna.it/) | The four planned lines: Rossa, Verde, Gialla, and Blu, and the street lists used to draw Verde, Gialla, and Blu. | September 2026 | Project pages of the tram network |
 | [Comune di Bologna, Traffico viali](https://opendata.comune.bologna.it/explore/dataset/traffico-viali/) | Weekday 08:00–09:00 loop counts. The corridor demand is the median of the peak direction on Viale Ercolani (south, about 1,160 veh/h) and Viale Pietramellara (north-east, about 1,152 veh/h). | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna |
 | [Comune di Bologna, Rilevazione flussi bici](https://opendata.comune.bologna.it/explore/dataset/colonnine-conta-bici/) | Hourly bicycle counters. The run uses Stalingrado II, the counter nearest the corridor, on 23 September 2026, 08:00–09:00 local, peak direction 57 bikes/h. | Open Data API, September 2026 | [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). Publisher: Comune di Bologna |

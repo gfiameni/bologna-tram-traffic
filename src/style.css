@@ -194,7 +194,22 @@ body:not(.view-compare) .compare-only { display: none; }
   line-height: 1.4;
 }
 
-#impact article[data-factor="air"] strong { color: #f5b942; }
+#impact article[data-factor="air"] strong,
+#impact article[data-factor="noise"] strong { color: #f5b942; }
+
+#map-caption {
+  margin: 0 0 6px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.scale-key b {
+  font-weight: 500;
+  margin-right: 4px;
+}
+
+#legend .scale-key[hidden] { display: none; }
 
 #impact p {
   margin: 2px 0 0;

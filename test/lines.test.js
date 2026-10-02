@@ -30,6 +30,9 @@ check("Rossa off restores the before corridor", off.after.carFlow === 453 && off
 
 const view = { scenario: "after", cars: 1155, peakCars: 1233, carFlow: 221, beforeCarFlow: 453 };
 const sample = { line: "verde", rank: 0.7 };
-check("a closed line stays off the heatmap", intensity(sample, { ...view, activeLines: ["rossa"] }) === 0);
-check("an open line cools its corridor", intensity(sample, { ...view, activeLines: ["rossa", "verde"] }) > 0.05);
-check("line heat waits for the with-tram view", intensity(sample, { ...view, scenario: "before", activeLines: ["verde"] }) === 0);
+const closed = intensity(sample, { ...view, activeLines: ["rossa"] });
+const open = intensity(sample, { ...view, activeLines: ["rossa", "verde"] });
+const beforeLine = intensity(sample, { ...view, scenario: "before", activeLines: ["verde"] });
+check("a closed line keeps its car congestion", closed > 0.36 && closed > open);
+check("an open line cools its corridor", open > 0.05 && open < closed);
+check("the corridor is congested before the tram", beforeLine > open);

@@ -1,4 +1,4 @@
-import { hourCars, intensity } from "../src/heatmap.js";
+import { hourCars, intensity, placeCongestion } from "../src/heatmap.js";
 import { readFileSync } from "node:fs";
 
 function check(name, condition) {
@@ -11,6 +11,7 @@ function check(name, condition) {
 }
 
 const centre = JSON.parse(readFileSync(new URL("../public/centre.json", import.meta.url)));
+const lines = JSON.parse(readFileSync(new URL("../public/lines.json", import.meta.url)));
 const catalog = JSON.parse(readFileSync(new URL("../public/catalog.json", import.meta.url)));
 const tram = centre.samples.filter((sample) => sample.tram).sort((a, b) => b.rank - a.rank)[0];
 const ring = centre.samples.filter((sample) => sample.ring).sort((a, b) => b.rank - a.rank)[0];
@@ -57,3 +58,10 @@ check(
     && intensity(inside, noLines) === intensity(inside, viewMorning)
     && intensity(tram, noLines) === intensity(tram, viewMorning),
 );
+
+const level = (places, id) => places.find((place) => place.id === id).level;
+const beforePlaces = placeCongestion(centre, lines, { ...viewMorning, activeLines: ["rossa"] });
+const afterPlaces = placeCongestion(centre, lines, { ...viewAfter, activeLines: ["rossa", "verde", "gialla", "blu"] });
+check("bars are sorted with the busiest place first", beforePlaces.every((place, index) => index === 0 || place.level <= beforePlaces[index - 1].level));
+check("an open line drops below the avenues", level(afterPlaces, "rossa") < level(afterPlaces, "avenues") && level(afterPlaces, "verde") < level(beforePlaces, "verde"));
+check("the bypass takes more congestion after Rossa", level(afterPlaces, "bypass") > level(beforePlaces, "bypass"));

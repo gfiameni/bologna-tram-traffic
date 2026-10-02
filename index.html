@@ -43,6 +43,7 @@
       <p id="air-note" aria-live="polite"></p>
       <p id="sensor-note" aria-live="polite"></p>
       <p class="kicker">Before</p>
+      <p id="map-caption"></p>
       <section id="impact" aria-live="polite">
         <article data-factor="cars">
           <h2 data-i18n="impact.cars">Cars</h2>
@@ -63,6 +64,10 @@
           <h2 data-i18n="impact.air">Exhaust</h2>
           <strong id="impact-air-value"></strong>
         </article>
+        <article data-factor="noise">
+          <h2 data-i18n="impact.noise">Traffic noise</h2>
+          <strong id="impact-noise-value"></strong>
+        </article>
       </section>
       <details id="numbers" class="compare-only">
         <summary data-i18n="impact.details">All numbers</summary>
@@ -81,7 +86,9 @@
           <tr data-key="transitFieraMin"><th data-i18n="row.transitFieraMin">Transit, Emilio Lepido to the Fiera</th><td></td><td></td></tr>
           <tr data-key="transitPilastroMin"><th data-i18n="row.transitPilastroMin">Transit, Emilio Lepido to Agraria</th><td></td><td></td></tr>
           <tr data-key="viaEmiliaKmh"><th data-i18n="row.viaEmiliaKmh">Car speed on Via Emilia</th><td></td><td></td></tr>
-          <tr data-key="carFlow"><th data-i18n="row.carFlow">Cars / hour through San Felice</th><td></td><td></td></tr>
+          <tr data-key="carDemand"><th data-i18n="row.carDemand">Car demand / hour</th><td></td><td></td></tr>
+          <tr data-key="carFlow"><th data-i18n="row.carFlow">Cars / hour that get through San Felice</th><td></td><td></td></tr>
+          <tr data-key="carQueue"><th data-i18n="row.carQueue">Cars / hour left queued</th><td></td><td></td></tr>
           <tr data-key="peoplePerHour"><th data-i18n="row.peoplePerHour">People / hour at San Felice</th><td></td><td></td></tr>
           <tr data-key="unserved"><th data-i18n="row.unserved">Transit riders left waiting</th><td></td><td></td></tr>
         </tbody>
@@ -132,8 +139,7 @@
       <span class="after-only"><i class="swatch bike"></i><span data-i18n="legend.bike">Bicycle</span></span>
       <span class="after-only"><i class="swatch bus"></i><span data-i18n="legend.bus">Bus</span></span>
       <span class="after-only"><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
-      <span class="scale-key after-only"><span data-i18n="legend.fast">fast</span><i></i><span data-i18n="legend.slow">slow</span></span>
-      <span id="heat-key"><i class="heat-swatch"></i><span data-i18n="legend.heat">car traffic</span></span>
+      <span class="scale-key"><b data-i18n="legend.heat">car traffic</b><span data-i18n="legend.fast">clear</span><i></i><span data-i18n="legend.slow">congested</span></span>
       <span id="air-key" hidden><i class="air-down"></i><span data-i18n="legend.airDown">less exhaust</span> <i class="air-up"></i><span data-i18n="legend.airUp">more exhaust</span></span>
       <span id="sensor-key" hidden><i class="sensor-swatch"></i><span data-i18n="legend.sensor">air station</span></span>
     </div>
