@@ -116,24 +116,8 @@ L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", {
 }).addTo(map);
 L.control.scale({ imperial: false, position: "topright" }).addTo(map);
 
-function sliceLatLngs(poly, start, end) {
-  const points = poly.points;
-  const at = (distance) => {
-    let index = 0;
-    while (index < points.length - 2 && points[index + 1].s < distance) index += 1;
-    const a = points[index];
-    const b = points[Math.min(points.length - 1, index + 1)];
-    const span = b.s - a.s || 1;
-    const t = Math.max(0, Math.min(1, (distance - a.s) / span));
-    return [a.lat + (b.lat - a.lat) * t, a.lon + (b.lon - a.lon) * t];
-  };
-  const line = [at(start)];
-  for (const point of points) {
-    if (point.s > start && point.s < end) line.push([point.lat, point.lon]);
-  }
-  line.push(at(end));
-  return line;
-}
+map.createPane("tramlines");
+map.getPane("tramlines").style.zIndex = 450;
 
 const carLines = {};
 const plannedLines = [];
@@ -148,22 +132,25 @@ for (const [name, poly] of Object.entries(geo.pieces.car)) {
   }).addTo(map);
 }
 for (const poly of Object.values(geo.pieces.tram)) {
-  plannedLines.push(L.polyline(poly.points.map((p) => [p.lat, p.lon]), {
-    color: "#e30613",
-    weight: 2,
-    dashArray: "1 9",
-    opacity: 0.7,
+  const latlngs = poly.points.map((p) => [p.lat, p.lon]);
+  const casing = L.polyline(latlngs, {
+    pane: "tramlines",
+    color: "#fffaf3",
+    weight: 9,
+    opacity: 0,
+    lineCap: "round",
     interactive: false,
-  }).addTo(map));
+  }).addTo(map);
+  const line = L.polyline(latlngs, {
+    pane: "tramlines",
+    color: "#e30613",
+    weight: 5,
+    opacity: 0,
+    lineCap: "round",
+    interactive: false,
+  }).addTo(map);
+  plannedLines.push({ casing, line });
 }
-const centreEnd = geo.lengths.tram.trunk - geo.lengths.car.city;
-const centreLine = L.polyline(sliceLatLngs(geo.pieces.tram.trunk, geo.screenS, centreEnd), {
-  color: "#e30613",
-  weight: 5,
-  opacity: 0,
-  lineCap: "round",
-  interactive: false,
-}).addTo(map);
 
 const stopLayer = L.layerGroup();
 for (const stop of network.stops) {
@@ -181,10 +168,10 @@ if (linesPlan) {
   for (const line of linesPlan.lines) {
     if (line.id === "rossa") continue;
     const layers = line.segments.map((segment) => L.polyline(segment, {
+      pane: "tramlines",
       color: line.color,
-      weight: 4,
-      opacity: 0.25,
-      dashArray: "5 8",
+      weight: 5,
+      opacity: 0,
       lineCap: "round",
       interactive: false,
     }).addTo(map));
@@ -295,19 +282,26 @@ function congestionColor(speed) {
 function paintRoutes() {
   const current = shown();
   const speeds = current[state.scenario].speeds;
+  const carFlow = current[state.scenario].carFlow;
   for (const [name, line] of Object.entries(carLines)) {
-    line.setStyle({ color: congestionColor(speeds[name]) });
+    const share = name === "fiera" ? state.params.fieraShare : name === "pilastro" ? 1 - state.params.fieraShare : 1;
+    line.setStyle({
+      color: congestionColor(speeds[name]),
+      weight: Math.max(2.5, Math.min(9, 2 + (carFlow * share) / 80)),
+    });
   }
   const rossaOn = state.scenario === "after" && state.lines.includes("rossa");
-  for (const line of plannedLines) line.setStyle({ opacity: 0 });
-  centreLine.setStyle({ opacity: rossaOn ? 1 : 0 });
+  for (const { casing, line } of plannedLines) {
+    casing.setStyle({ opacity: rossaOn ? 1 : 0 });
+    line.setStyle({ opacity: rossaOn ? 1 : 0 });
+  }
   if (rossaOn) stopLayer.addTo(map);
   else stopLayer.remove();
   const after = state.scenario === "after";
   for (const item of extraLayers) {
-    const shown = after && state.lines.includes(item.id);
+    const open = after && state.lines.includes(item.id);
     for (const layer of item.layers) {
-      layer.setStyle({ opacity: shown ? 0.95 : 0, weight: 5, dashArray: null });
+      layer.setStyle({ opacity: open ? 0.95 : 0, weight: 5, dashArray: null });
     }
   }
   paintHeat();
