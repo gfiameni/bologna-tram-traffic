@@ -3,11 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Bologna tram network</title>
+    <title data-i18n="page.title">Bologna tram network</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,560;9..144,650&family=Outfit:wght@400;500;600&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600&display=swap"
       rel="stylesheet"
     />
   </head>
@@ -17,106 +17,116 @@
     <canvas id="air"></canvas>
     <canvas id="vehicles"></canvas>
     <aside id="panel">
-      <p class="eyebrow" id="when">Bologna · morning peak</p>
-      <h1>Bologna<br>tram network</h1>
-      <p class="lede">
+      <div class="topline">
+        <p class="eyebrow" id="when">Bologna · morning peak</p>
+        <div class="lang" role="group" aria-label="Language" data-i18n-aria="lang.group">
+          <button type="button" data-lang="en" lang="en" aria-pressed="true">EN</button>
+          <button type="button" data-lang="it" lang="it" aria-pressed="false">IT</button>
+        </div>
+      </div>
+      <h1 data-i18n-html="page.heading">Bologna<br>tram network</h1>
+      <p class="lede" data-i18n="page.lede">
         Traffic with the planned tram lines. Rossa is the modelled corridor, from Borgo Panigale through the centre to the Fiera and Agraria. Verde, Gialla, and Blu can be opened on top of it.
       </p>
-      <div class="switch" role="group" aria-label="Map scenario">
-        <button type="button" id="show-before" aria-pressed="true">Before the tram</button>
-        <button type="button" id="show-after" aria-pressed="false">With the tram</button>
+      <div class="switch" role="group" aria-label="Map scenario" data-i18n-aria="scenario.group">
+        <button type="button" id="show-before" aria-pressed="true" data-i18n="scenario.before">Before the tram</button>
+        <button type="button" id="show-after" aria-pressed="false" data-i18n="scenario.after">With the tram</button>
       </div>
-      <div id="lines" role="group" aria-label="Planned tram lines">
+      <div id="lines" role="group" aria-label="Planned tram lines" data-i18n-aria="lines.group">
         <label class="line-rossa"><input type="checkbox" value="rossa" checked> Rossa</label>
         <label class="line-verde"><input type="checkbox" value="verde"> Verde</label>
         <label class="line-gialla"><input type="checkbox" value="gialla"> Gialla</label>
         <label class="line-blu"><input type="checkbox" value="blu"> Blu</label>
       </div>
-      <button type="button" id="heat-toggle" aria-pressed="false">City centre heat</button>
-      <button type="button" id="air-toggle" aria-pressed="false">Air proxy</button>
-      <button type="button" id="sensors-toggle" aria-pressed="false">Pollution sensors</button>
+      <button type="button" id="heat-toggle" aria-pressed="false" data-i18n="toggle.heat">City centre heat</button>
+      <button type="button" id="air-toggle" aria-pressed="false" data-i18n="toggle.air">Air proxy</button>
+      <button type="button" id="sensors-toggle" aria-pressed="false" data-i18n="toggle.sensors">Pollution sensors</button>
       <p id="heat-note" aria-live="polite"></p>
       <p id="air-note" aria-live="polite"></p>
       <p id="sensor-note" aria-live="polite"></p>
-      <p class="kicker">Via Emilia speed</p>
+      <p class="kicker" data-i18n="car.kicker">Car trip to the Fiera</p>
       <div class="hero" aria-live="polite">
         <div>
-          <span id="speed-before">—</span>
-          <small>km/h before</small>
+          <span id="car-before">—</span>
+          <small data-i18n="car.before">min before</small>
         </div>
         <div>
-          <span id="speed-after">—</span>
-          <small>km/h with tram</small>
+          <span id="car-after">—</span>
+          <small data-i18n="car.after">min with tram</small>
         </div>
       </div>
+      <p id="car-verdict" aria-live="polite"><strong></strong> <span></span></p>
+      <p id="car-why"></p>
+      <p id="car-compare"></p>
       <p id="finding"></p>
       <table>
         <thead>
           <tr>
             <th></th>
-            <th>Before</th>
-            <th>With tram</th>
+            <th data-i18n="table.before">Before</th>
+            <th data-i18n="table.after">With tram</th>
           </tr>
         </thead>
         <tbody>
-          <tr data-key="carFieraMin"><th>Car to the Fiera</th><td></td><td></td></tr>
-          <tr data-key="carPilastroMin"><th>Car to Agraria</th><td></td><td></td></tr>
-          <tr data-key="bikeFieraMin"><th>Bicycle to the Fiera</th><td></td><td></td></tr>
-          <tr data-key="transitFieraMin"><th>Transit to the Fiera</th><td></td><td></td></tr>
-          <tr data-key="transitPilastroMin"><th>Transit to Agraria</th><td></td><td></td></tr>
-          <tr data-key="carFlow"><th>Cars / hour through San Felice</th><td></td><td></td></tr>
-          <tr data-key="peoplePerHour"><th>People / hour at San Felice</th><td></td><td></td></tr>
-          <tr data-key="unserved"><th>Transit riders left waiting</th><td></td><td></td></tr>
+          <tr data-key="carFieraMin"><th data-i18n="row.carFieraMin">Car to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="carPilastroMin"><th data-i18n="row.carPilastroMin">Car to Agraria</th><td></td><td></td></tr>
+          <tr data-key="bikeFieraMin"><th data-i18n="row.bikeFieraMin">Bicycle to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="transitFieraMin"><th data-i18n="row.transitFieraMin">Transit to the Fiera</th><td></td><td></td></tr>
+          <tr data-key="transitPilastroMin"><th data-i18n="row.transitPilastroMin">Transit to Agraria</th><td></td><td></td></tr>
+          <tr data-key="viaEmiliaKmh"><th data-i18n="row.viaEmiliaKmh">Car speed on Via Emilia</th><td></td><td></td></tr>
+          <tr data-key="carFlow"><th data-i18n="row.carFlow">Cars / hour through San Felice</th><td></td><td></td></tr>
+          <tr data-key="peoplePerHour"><th data-i18n="row.peoplePerHour">People / hour at San Felice</th><td></td><td></td></tr>
+          <tr data-key="unserved"><th data-i18n="row.unserved">Transit riders left waiting</th><td></td><td></td></tr>
         </tbody>
       </table>
       <label class="slider" for="hour">
-        <span>Time of day</span>
+        <span data-i18n="control.hour">Time of day</span>
         <select id="hour"></select>
       </label>
-      <button type="button" id="play-day" aria-pressed="false">Play the day</button>
+      <button type="button" id="play-day" aria-pressed="false" data-i18n="control.playDay">Play the day</button>
       <label class="slider" for="model">
-        <span>Model</span>
+        <span data-i18n="control.model">Model</span>
         <select id="model">
-          <option value="ctm">Cell transmission</option>
-          <option value="bpr">Volume-delay</option>
-          <option value="idm">Car following</option>
-          <option value="surrogate">Neural surrogate</option>
+          <option value="ctm" data-i18n="model.ctm">Cell transmission</option>
+          <option value="bpr" data-i18n="model.bpr">Volume-delay</option>
+          <option value="idm" data-i18n="model.idm">Car following</option>
+          <option value="surrogate" data-i18n="model.surrogate">Neural surrogate</option>
         </select>
       </label>
       <p id="snap"></p>
       <label class="slider">
-        <span>Car trips that switch to the tram <strong id="shift-value">25%</strong></span>
+        <span><span data-i18n="control.shift">Car trips that switch to the tram</span> <strong id="shift-value">25%</strong></span>
         <input id="shift" type="range" min="0" max="50" step="1" value="25" />
       </label>
       <label class="slider">
-        <span>Tram every <strong id="headway-value">4.5 min</strong></span>
+        <span><span data-i18n="control.headway">Tram every</span> <strong id="headway-value">4.5 min</strong></span>
         <input id="headway" type="range" min="3" max="8" step="0.5" value="4.5" />
       </label>
-      <button type="button" id="predict">Predict best setup</button>
-      <button type="button" id="export-report">Export report</button>
+      <button type="button" id="predict" data-i18n="control.predict">Predict best setup</button>
+      <button type="button" id="export-report" data-i18n="control.export">Export report</button>
       <p id="predict-note"></p>
       <div class="playback">
         <button type="button" id="play">Pause</button>
-        <div class="scale" role="group" aria-label="Simulation speed">
+        <div class="scale" role="group" aria-label="Simulation speed" data-i18n-aria="control.simSpeed">
           <button type="button" data-scale="20">20×</button>
           <button type="button" data-scale="40" aria-pressed="true">40×</button>
           <button type="button" data-scale="80">80×</button>
         </div>
       </div>
       <details>
-        <summary>What this scenario assumes</summary>
+        <summary data-i18n="control.assumes">What this scenario assumes</summary>
         <p id="assumptions"></p>
       </details>
     </aside>
     <div id="legend">
-      <span><i class="swatch car"></i>Car</span>
-      <span><i class="swatch bike"></i>Bicycle</span>
-      <span><i class="swatch bus"></i>Bus</span>
-      <span><i class="swatch tram"></i>Tram</span>
-      <span class="scale-key"><i></i>slow</span>
-      <span id="heat-key" hidden><i class="heat-swatch"></i>centre cars</span>
-      <span id="air-key" hidden><i class="air-down"></i>less exhaust <i class="air-up"></i>more exhaust</span>
-      <span id="sensor-key" hidden><i class="sensor-swatch"></i>air station</span>
+      <span><i class="swatch car"></i><span data-i18n="legend.car">Car</span></span>
+      <span><i class="swatch bike"></i><span data-i18n="legend.bike">Bicycle</span></span>
+      <span><i class="swatch bus"></i><span data-i18n="legend.bus">Bus</span></span>
+      <span><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
+      <span class="scale-key"><span data-i18n="legend.fast">fast</span><i></i><span data-i18n="legend.slow">slow</span></span>
+      <span id="heat-key" hidden><i class="heat-swatch"></i><span data-i18n="legend.heat">centre cars</span></span>
+      <span id="air-key" hidden><i class="air-down"></i><span data-i18n="legend.airDown">less exhaust</span> <i class="air-up"></i><span data-i18n="legend.airUp">more exhaust</span></span>
+      <span id="sensor-key" hidden><i class="sensor-swatch"></i><span data-i18n="legend.sensor">air station</span></span>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

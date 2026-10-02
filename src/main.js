@@ -1,8 +1,9 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
-import { DEFAULTS, prepare, evaluate, finding } from "./model.js";
-import { caseKey, predictionSentence, reportHtml, downloadReport, searchBestSetup } from "./report.js";
+import { DEFAULTS, prepare, evaluate, finding, carChange } from "./model.js";
+import { LANGS, tr, count, joinNames, hourText, noteText, locale } from "./i18n.js";
+import { caseKey, reportHtml, downloadReport, searchBestSetup } from "./report.js";
 import { createHeat, hourCars } from "./heatmap.js";
 import { createAir, stationSummary } from "./air.js";
 import { withLines } from "./lines.js";
@@ -22,7 +23,31 @@ const state = {
   sensors: false,
   lines: ["rossa"],
   params: { ...DEFAULTS },
+  lang: startLang(),
 };
+
+function startLang() {
+  const asked = new URLSearchParams(location.search).get("lang");
+  if (LANGS.includes(asked)) return asked;
+  const saved = localStorage.getItem("lang");
+  if (LANGS.includes(saved)) return saved;
+  return navigator.language?.toLowerCase().startsWith("it") ? "it" : "en";
+}
+
+function t(key, vars) {
+  return tr(state.lang, key, vars);
+}
+
+function applyStatic() {
+  document.documentElement.lang = state.lang;
+  for (const node of document.querySelectorAll("[data-i18n]")) node.textContent = t(node.dataset.i18n);
+  for (const node of document.querySelectorAll("[data-i18n-html]")) node.innerHTML = t(node.dataset.i18nHtml);
+  for (const node of document.querySelectorAll("[data-i18n-aria]")) node.setAttribute("aria-label", t(node.dataset.i18nAria));
+  for (const button of document.querySelectorAll(".lang button")) {
+    button.setAttribute("aria-pressed", String(button.dataset.lang === state.lang));
+  }
+}
+applyStatic();
 
 let catalog = null;
 try {
@@ -58,7 +83,7 @@ try {
 
 function hourLabel(hour) {
   const slot = catalog?.hours?.find((item) => item.hour === hour);
-  return slot?.label || `${String(hour).padStart(2, "0")}:00`;
+  return slot?.label ? hourText(state.lang, slot.label) : `${String(hour).padStart(2, "0")}:00`;
 }
 
 function nearest(value, options) {
@@ -114,17 +139,11 @@ const carLines = {};
 const plannedLines = [];
 for (const [name, poly] of Object.entries(geo.pieces.car)) {
   const latlngs = poly.points.map((p) => [p.lat, p.lon]);
-  L.polyline(latlngs, {
-    color: "#f4efe4",
-    weight: 12,
-    opacity: 0.92,
-    lineCap: "round",
-    interactive: false,
-  }).addTo(map);
   carLines[name] = L.polyline(latlngs, {
-    weight: 6,
+    weight: 4,
     opacity: 0.95,
-    lineCap: "round",
+    lineCap: "butt",
+    lineJoin: "miter",
     interactive: false,
   }).addTo(map);
 }
@@ -204,7 +223,7 @@ const sensorLayer = airData?.stations?.length
       className: "sensor-tip",
       offset,
     });
-    marker.bindPopup(`<strong>${station.name}</strong><br>${stationSummary(station)}`);
+    marker.bindPopup(() => `<strong>${station.name}</strong><br>${stationSummary(station, state.lang)}`);
     return marker;
   }))
   : null;
@@ -257,7 +276,10 @@ function paintHeat() {
   document.getElementById("heat-key").hidden = !state.heatmap;
   const open = state.lines.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
   document.getElementById("heat-note").textContent = state.heatmap
-    ? `${Math.round(carFlow).toLocaleString("en-GB")} modeled cars/hour feed the centre heat${state.scenario === "after" && open.length ? `, with ${open.join(", ")} open` : ""}.`
+    ? t("heat.note", {
+      n: count(state.lang, carFlow),
+      open: state.scenario === "after" && open.length ? t("heat.open", { names: joinNames(state.lang, open) }) : "",
+    })
     : "";
 }
 
@@ -298,25 +320,79 @@ function formatMinutes(value) {
 }
 
 function assumptionText() {
-  if (!catalog) {
-    return "The saved model catalog is missing, so the page is using the browser volume-delay curve. Run python -m sim.catalog to build the cell, car-following, and neural models.";
-  }
+  if (!catalog) return t("assume.noCatalog");
   const supply = catalog.supply;
   const device = catalog.device;
+  const note = (text) => noteText(state.lang, text);
   return [
-    supply.notes.cars,
-    supply.notes.bikes,
-    supply.notes.buses,
-    supply.signalTiming,
-    `The neural surrogate is a 12-neuron network trained on cell-transmission runs of this corridor. Its holdout error is ${catalog.surrogate.holdoutMinutesMae} minutes per street.`,
-    (reportedCuda ?? device.cuda)
-      ? "Cell transmission and car following are Warp kernels, running on CUDA."
-      : "Cell transmission and car following are Warp kernels. This page is using the NumPy copy of those updates, which the tests match to Warp. The model server runs the kernels on CUDA when Warp reports a GPU.",
-    "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues. Bicycles stay on the corridor, including through the centre. Passenger service is expected in 2027. This is a scenario, not a forecast from the Comune.",
-    linesPlan?.note,
-    centre?.note,
-    airData?.note,
+    note(supply.notes.cars),
+    note(supply.notes.bikes),
+    note(supply.notes.buses),
+    note(supply.signalTiming),
+    t("assume.surrogate", { mae: catalog.surrogate.holdoutMinutesMae.toLocaleString(locale(state.lang)) }),
+    (reportedCuda ?? device.cuda) ? t("assume.cuda") : t("assume.numpy"),
+    t("assume.scenario"),
+    note(linesPlan?.note),
+    note(centre?.note),
+    note(airData?.note),
   ].filter(Boolean).join(" ");
+}
+
+function otherModels() {
+  if (!catalog) return [];
+  const shift = nearest(state.params.modalShift, catalog.shifts);
+  const headway = nearest(state.params.tramHeadwayMin, catalog.headways);
+  return (catalog.models || [])
+    .filter((item) => item.id !== state.model)
+    .map((item) => {
+      const before = catalog.cases[caseKey(item.id, "before", shift, headway, state.hour)];
+      const after = catalog.cases[caseKey(item.id, "after", shift, headway, state.hour)];
+      return before && after ? { id: item.id, ...carChange({ before, after }) } : null;
+    })
+    .filter(Boolean);
+}
+
+function paintCar(current) {
+  const verdictNode = document.getElementById("car-verdict");
+  const why = document.getElementById("car-why");
+  const compare = document.getElementById("car-compare");
+  const { before, after } = current;
+  document.getElementById("car-before").textContent = `${Math.round(before.carFieraMin)}`;
+  document.getElementById("car-after").textContent = `${Math.round(after.carFieraMin)}`;
+  if (!state.lines.includes("rossa")) {
+    verdictNode.dataset.verdict = "same";
+    verdictNode.querySelector("strong").textContent = t("car.same");
+    verdictNode.querySelector("span").textContent = t("car.rossaOff");
+    why.textContent = "";
+    compare.textContent = "";
+    return;
+  }
+  const change = carChange(current);
+  verdictNode.dataset.verdict = change.verdict;
+  verdictNode.querySelector("strong").textContent = t(`car.${change.verdict}`);
+  verdictNode.querySelector("span").textContent = t(`car.${change.verdict}Text`, { n: Math.abs(change.rounded) });
+  const vBefore = Math.round(before.viaEmiliaKmh);
+  const vAfter = Math.round(after.viaEmiliaKmh);
+  why.textContent = t(vBefore === vAfter ? "car.whyFlat" : "car.why", {
+    before: count(state.lang, before.carFlow),
+    after: count(state.lang, after.carFlow),
+    vBefore,
+    vAfter,
+  });
+  const others = otherModels();
+  if (!others.length) {
+    compare.textContent = "";
+    return;
+  }
+  const list = others.map((item) => {
+    const delta = item.verdict === "same"
+      ? t("car.deltaSame")
+      : `${item.rounded > 0 ? "+" : "−"}${Math.abs(item.rounded)} min`;
+    return `${t(`model.${item.id}`)} ${delta}`;
+  });
+  const verdicts = new Set([change.verdict, ...others.map((item) => item.verdict)]);
+  const disagree = verdicts.has("slower") && verdicts.has("faster");
+  compare.textContent = `${t("car.compare", { list: list.join(", ") })}${disagree ? ` ${t("car.disagree")}` : ""}`;
 }
 
 function paintPanel(options = {}) {
@@ -328,24 +404,24 @@ function paintPanel(options = {}) {
   document.getElementById("assumptions").textContent = assumptionText();
   const snap = document.getElementById("snap");
   if (metrics.snapped) {
-    snap.textContent = `Showing the nearest saved case: ${Math.round(metrics.shift * 100)}% switch, tram every ${metrics.headway} min.`;
+    snap.textContent = t("snap.nearest", {
+      pct: Math.round(metrics.shift * 100),
+      headway: metrics.headway.toLocaleString(locale(state.lang)),
+    });
   } else if (metrics.live) {
-    snap.textContent = metrics.cuda ? "Computed on CUDA for these slider values." : "Computed for these slider values.";
+    snap.textContent = metrics.cuda ? t("snap.cuda") : t("snap.live");
   } else {
     snap.textContent = "";
   }
-  document.getElementById("speed-before").textContent = `${Math.round(before.viaEmiliaKmh)}`;
-  document.getElementById("speed-after").textContent = `${Math.round(after.viaEmiliaKmh)}`;
+  paintCar(current);
   const extras = state.lines.filter((id) => id !== "rossa");
   const extraNames = extras.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
-  const joined = extraNames.length < 2
-    ? extraNames.join("")
-    : `${extraNames.slice(0, -1).join(", ")} and ${extraNames.at(-1)}`;
+  const joined = joinNames(state.lang, extraNames);
   const base = state.lines.includes("rossa")
-    ? finding(current)
-    : "Rossa is off, so that corridor keeps its lanes and its car times.";
+    ? finding(current, { lang: state.lang, car: false })
+    : t("finding.rossaOff");
   const lineSentence = joined
-    ? ` ${joined} ${extraNames.length === 1 ? "is" : "are"} also open, so this scenario leaves ${Math.round(after.carFlow).toLocaleString("en-GB")} cars an hour.`
+    ? t(extraNames.length === 1 ? "lines.alsoOne" : "lines.alsoMany", { names: joined, n: count(state.lang, after.carFlow) })
     : "";
   document.getElementById("finding").textContent = `${base}${lineSentence}`;
   const rows = {
@@ -354,6 +430,7 @@ function paintPanel(options = {}) {
     bikeFieraMin: [before.bikeFieraMin, after.bikeFieraMin],
     transitFieraMin: [before.transitFieraMin, after.transitFieraMin],
     transitPilastroMin: [before.transitPilastroMin, after.transitPilastroMin],
+    viaEmiliaKmh: [before.viaEmiliaKmh, after.viaEmiliaKmh],
     carFlow: [before.carFlow, after.carFlow],
     peoplePerHour: [before.peoplePerHour, after.peoplePerHour],
     unserved: [before.unserved, after.unserved],
@@ -363,7 +440,9 @@ function paintPanel(options = {}) {
     values.forEach((value, index) => {
       const text = key.endsWith("Min")
         ? formatMinutes(value)
-        : Math.round(value).toLocaleString("en-GB");
+        : key === "viaEmiliaKmh"
+          ? `${Math.round(value)} km/h`
+          : count(state.lang, value);
       cells[index].textContent = text;
       cells[index].classList.toggle("active", (index === 0 ? "before" : "after") === state.scenario);
     });
@@ -401,13 +480,17 @@ async function refreshLive() {
 }
 
 const hourSelect = document.getElementById("hour");
-for (const slot of catalog?.hours || [{ hour: 8, label: "08:00 · morning peak" }]) {
-  const option = document.createElement("option");
-  option.value = String(slot.hour);
-  option.textContent = slot.label;
-  hourSelect.append(option);
+function fillHours() {
+  hourSelect.replaceChildren();
+  for (const slot of catalog?.hours || [{ hour: 8, label: "08:00 · morning peak" }]) {
+    const option = document.createElement("option");
+    option.value = String(slot.hour);
+    option.textContent = hourText(state.lang, slot.label);
+    hourSelect.append(option);
+  }
+  hourSelect.value = String(state.hour);
 }
-hourSelect.value = String(state.hour);
+fillHours();
 
 let dayTimer = 0;
 const dayButton = document.getElementById("play-day");
@@ -416,7 +499,7 @@ function stopDay() {
     clearInterval(dayTimer);
     dayTimer = 0;
   }
-  dayButton.textContent = "Play the day";
+  dayButton.textContent = t("control.playDay");
   dayButton.setAttribute("aria-pressed", "false");
 }
 function applyHour(hour, live) {
@@ -440,7 +523,7 @@ dayButton.addEventListener("click", () => {
   }
   const hours = (catalog?.hours || [{ hour: state.hour }]).map((slot) => slot.hour);
   if (!state.air) state.heatmap = true;
-  dayButton.textContent = "Stop the day";
+  dayButton.textContent = t("control.stopDay");
   dayButton.setAttribute("aria-pressed", "true");
   let index = 0;
   applyHour(hours[0], false);
@@ -525,8 +608,8 @@ function paintAir() {
   const readings = airData.stations.map((station) => `${station.name} ${station.no2}`).join(" · ");
   document.getElementById("air-note").textContent = state.air
     ? serving
-      ? `Proxy down on open lines, up on the avenues. Measured NO2 stays put: ${readings} µg/m³.`
-      : `Measured NO2 stays put: ${readings} µg/m³. Street colour is a kerb exhaust proxy, not a plume.`
+      ? t("air.serving", { readings })
+      : t("air.idle", { readings })
     : "";
 }
 
@@ -544,7 +627,7 @@ function paintSensors() {
   sensorsToggle.setAttribute("aria-pressed", String(state.sensors));
   document.getElementById("sensor-key").hidden = !state.sensors;
   document.getElementById("sensor-note").textContent = state.sensors
-    ? `${airData.stations.map((station) => `${station.name} NO2 ${station.no2}`).join(" · ")} µg/m³. These dots are the measured stations.`
+    ? t("sensor.note", { readings: airData.stations.map((station) => `${station.name} NO2 ${station.no2}`).join(" · ") })
     : "";
   if (state.sensors) sensorLayer.addTo(map);
   else map.removeLayer(sensorLayer);
@@ -565,7 +648,7 @@ shift.addEventListener("input", () => {
 });
 headway.addEventListener("input", () => {
   state.params.tramHeadwayMin = Number(headway.value);
-  document.getElementById("headway-value").textContent = `${headway.value} min`;
+  document.getElementById("headway-value").textContent = `${Number(headway.value).toLocaleString(locale(state.lang))} min`;
   paintPanel();
   paintRoutes();
   refreshLive();
@@ -580,11 +663,29 @@ function modelLabel() {
   return modelSelect.selectedOptions[0]?.textContent || state.model;
 }
 
+function predictionNote(best) {
+  const extra = Math.round(best.after.carFieraMin - best.before.carFieraMin);
+  const change = extra > 0
+    ? t("prediction.longer", { n: extra })
+    : extra < 0
+      ? t("prediction.shorter", { n: Math.abs(extra) })
+      : t("prediction.same");
+  return t("prediction", {
+    model: modelLabel(),
+    hour: hourLabel(state.hour),
+    pct: Math.round(best.shiftValue * 100),
+    headway: best.headwayMin.toLocaleString(locale(state.lang)),
+    people: count(state.lang, best.after.peoplePerHour),
+    waiting: count(state.lang, best.after.unserved),
+    change,
+  });
+}
+
 document.getElementById("predict").addEventListener("click", () => {
   const note = document.getElementById("predict-note");
   const found = currentBest();
   if (!found) {
-    note.textContent = catalog ? "No saved setups for this hour." : "The saved catalog is required to search setups.";
+    note.textContent = catalog ? t("predict.noSetups") : t("predict.needCatalog");
     return;
   }
   const { best } = found;
@@ -594,8 +695,8 @@ document.getElementById("predict").addEventListener("click", () => {
   shift.value = String(Math.round(best.shiftValue * 100));
   headway.value = String(best.headwayMin);
   document.getElementById("shift-value").textContent = `${shift.value}%`;
-  document.getElementById("headway-value").textContent = `${best.headwayMin} min`;
-  note.textContent = predictionSentence(modelLabel(), hourLabel(state.hour), best);
+  document.getElementById("headway-value").textContent = `${best.headwayMin.toLocaleString(locale(state.lang))} min`;
+  note.textContent = predictionNote(best);
   paintPanel();
   paintRoutes();
   traffic.seed(state.params, shown());
@@ -606,17 +707,14 @@ document.getElementById("export-report").addEventListener("click", () => {
   const note = document.getElementById("predict-note");
   const found = currentBest();
   if (!found) {
-    note.textContent = catalog ? "No saved setups for this hour." : "The saved catalog is required to write the report.";
+    note.textContent = catalog ? t("predict.noSetups") : t("report.needCatalog");
     return;
   }
-  const label = modelLabel();
-  const when = hourLabel(state.hour);
-  const sentence = predictionSentence(label, when, found.best);
   const slot = catalog.hours?.find((item) => item.hour === state.hour);
   const supply = catalog.supply;
   const html = reportHtml({
-    modelLabel: label,
-    hourLabel: when,
+    modelLabel: tr("en", `model.${state.model}`),
+    hourLabel: slot?.label || hourLabel(state.hour),
     hourSlot: slot,
     best: found.best,
     ranked: found.ranked,
@@ -625,7 +723,7 @@ document.getElementById("export-report").addEventListener("click", () => {
       supply?.notes?.bikes,
       supply?.notes?.buses,
       supply?.signalTiming,
-      "With the tram, the buses counted at Porta San Felice leave the alignment, a share of drivers switch, and streets with tracks give up a lane. Cars go around the centre on the avenues.",
+      tr("en", "assume.report"),
     ],
     generatedAt: new Date().toLocaleString("en-GB", {
       dateStyle: "long",
@@ -635,13 +733,34 @@ document.getElementById("export-report").addEventListener("click", () => {
   });
   const hour = String(state.hour).padStart(2, "0");
   downloadReport(`linea-rossa-${hour}-${state.model}.html`, html);
-  note.textContent = sentence;
+  note.textContent = predictionNote(found.best);
 });
 
 document.getElementById("play").addEventListener("click", () => {
   state.playing = !state.playing;
-  document.getElementById("play").textContent = state.playing ? "Pause" : "Play";
+  paintPlay();
 });
+
+function paintPlay() {
+  document.getElementById("play").textContent = t(state.playing ? "control.pause" : "control.play");
+}
+
+for (const button of document.querySelectorAll(".lang button")) {
+  button.addEventListener("click", () => {
+    if (button.dataset.lang === state.lang) return;
+    state.lang = button.dataset.lang;
+    localStorage.setItem("lang", state.lang);
+    applyStatic();
+    fillHours();
+    paintPlay();
+    dayButton.textContent = t(dayTimer ? "control.stopDay" : "control.playDay");
+    document.getElementById("headway-value").textContent = `${state.params.tramHeadwayMin.toLocaleString(locale(state.lang))} min`;
+    document.getElementById("predict-note").textContent = "";
+    paintPanel({ keep: true });
+    paintRoutes();
+    paintSensors();
+  });
+}
 for (const button of document.querySelectorAll(".scale button")) {
   button.addEventListener("click", () => {
     state.timeScale = Number(button.dataset.scale);
@@ -718,6 +837,8 @@ function frame(now) {
   requestAnimationFrame(frame);
 }
 
+paintPlay();
+document.getElementById("headway-value").textContent = `${state.params.tramHeadwayMin.toLocaleString(locale(state.lang))} min`;
 paintPanel();
 paintRoutes();
 refreshLive();

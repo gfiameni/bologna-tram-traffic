@@ -1,3 +1,5 @@
+import { tr } from "./i18n.js";
+
 export function emissionLevel(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow, activeLines }) {
   const hour = Math.max(0.12, cars / Math.max(peakCars || 1233, 1));
   const rank = sample.rank || 0.4;
@@ -35,8 +37,8 @@ export function airPaintValue(sample, view) {
   return { mode: delta > 0 ? "up" : "down", value: Math.min(1, Math.abs(delta) / 0.45) };
 }
 
-export function stationSummary(station) {
-  const kind = station.kind ? `${station.kind}. ` : "";
+export function stationSummary(station, lang = "en") {
+  const kind = station.kind ? `${tr(lang, `station.${station.kind}`)}. ` : "";
   return `${kind}NO2 ${station.no2} µg/m³, PM10 ${station.pm10} µg/m³.`;
 }
 

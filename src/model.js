@@ -1,4 +1,5 @@
 /** Peak-hour volume-delay model for the Linea Rossa corridor. */
+import { count, tr } from "./i18n.js";
 
 export const DEFAULTS = {
   carDemandPerHour: 2000,
@@ -186,23 +187,31 @@ export function evaluate(geo, params) {
   return out;
 }
 
-export function finding(result) {
-  const carDelta = result.after.carFieraMin - result.before.carFieraMin;
+/** Rounded change in the car trip to the Fiera, with "slower", "faster", or "same". */
+export function carChange(result) {
+  const minutes = result.after.carFieraMin - result.before.carFieraMin;
+  const rounded = Math.round(minutes);
+  const verdict = minutes >= 1 ? "slower" : minutes <= -1 ? "faster" : "same";
+  return { minutes, rounded, verdict };
+}
+
+export function finding(result, { lang = "en", car = true } = {}) {
+  const { rounded, verdict } = carChange(result);
   const peopleDelta = result.after.peoplePerHour - result.before.peoplePerHour;
-  const carText = carDelta >= 1
-    ? `Cars take ${Math.round(carDelta)} min longer to reach the Fiera`
-    : carDelta <= -1
-      ? `Cars reach the Fiera ${Math.round(Math.abs(carDelta))} min sooner`
-      : "Car time to the Fiera stays about the same";
+  const carText = {
+    slower: tr(lang, "finding.carSlower", { n: rounded }),
+    faster: tr(lang, "finding.carFaster", { n: Math.abs(rounded) }),
+    same: tr(lang, "finding.carSame"),
+  }[verdict];
   const peopleText = peopleDelta >= 0
-    ? `${Math.round(peopleDelta).toLocaleString("en-GB")} more people an hour pass Porta San Felice`
-    : `${Math.round(Math.abs(peopleDelta)).toLocaleString("en-GB")} fewer people an hour pass Porta San Felice`;
+    ? tr(lang, "finding.peopleMore", { n: count(lang, peopleDelta) })
+    : tr(lang, "finding.peopleFewer", { n: count(lang, Math.abs(peopleDelta)) });
   const waiting = result.after.unserved > 80
-    ? ` ${Math.round(result.after.unserved).toLocaleString("en-GB")} people an hour still cannot board.`
+    ? tr(lang, "finding.waiting", { n: count(lang, result.after.unserved) })
     : "";
   const flowDrop = (result.before.carFlow || 0) - (result.after.carFlow || 0);
   const flowText = flowDrop > 40
-    ? ` ${Math.round(result.after.carFlow).toLocaleString("en-GB")} cars an hour get through San Felice once a lane is given to the tracks.`
+    ? tr(lang, "finding.flow", { n: count(lang, result.after.carFlow) })
     : "";
-  return `${carText}. ${peopleText}.${waiting}${flowText}`;
+  return `${car ? `${carText}. ` : ""}${peopleText}.${waiting}${flowText}`;
 }

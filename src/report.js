@@ -58,7 +58,7 @@ const METRICS = [
   ["Bicycle to the Fiera", "bikeFieraMin", true],
   ["Transit to the Fiera", "transitFieraMin", true],
   ["Transit to Agraria", "transitPilastroMin", true],
-  ["Via Emilia speed", "viaEmiliaKmh", false],
+  ["Car speed on Via Emilia", "viaEmiliaKmh", false],
   ["Cars / hour through San Felice", "carFlow", false],
   ["People / hour at San Felice", "peoplePerHour", false],
   ["Transit riders left waiting", "unserved", false],
@@ -102,21 +102,21 @@ export function reportHtml({
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Bologna tram network · ${escapeHtml(hourLabel)}</title>
   <style>
-    body { margin: 0; background: #f4efe4; color: #1b1714; font: 16px/1.45 "Segoe UI", sans-serif; }
+    body { margin: 0; background: #1e1e1e; color: #ffffff; font: 16px/1.45 "Segoe UI", sans-serif; }
     main { max-width: 760px; margin: 0 auto; padding: 40px 28px 72px; }
     h1, h2 { font-family: Georgia, serif; font-weight: 560; }
     h1 { font-size: 40px; margin: 8px 0 12px; }
     h2 { font-size: 22px; margin: 32px 0 8px; }
-    .eyebrow { margin: 0; letter-spacing: 0.14em; text-transform: uppercase; font-size: 12px; color: #6d645b; }
+    .eyebrow { margin: 0; letter-spacing: 0.14em; text-transform: uppercase; font-size: 12px; color: #76b900; }
     .lead { font-size: 18px; }
-    .setup { display: flex; gap: 18px; margin: 18px 0; }
-    .setup div { background: #fffaf3; border-top: 3px solid #e30613; padding: 12px 14px; min-width: 140px; }
+    .setup { display: flex; gap: 28px; margin: 18px 0; }
+    .setup div { background: transparent; border-top: 2px solid #76b900; padding: 8px 0; min-width: 120px; }
     .setup strong { display: block; font-size: 28px; }
-    .setup span { color: #6d645b; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; background: #fffaf3; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid #e3d8c8; }
-    tr.chosen { outline: 2px solid #1b1714; }
-    .note, li { color: #3d352e; }
+    .setup span { color: #b5b5b5; font-size: 13px; }
+    table { width: 100%; border-collapse: collapse; background: #2a2a2a; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); }
+    tr.chosen { outline: 2px solid #76b900; }
+    .note, li { color: #b5b5b5; }
     .note { font-size: 14px; }
   </style>
 </head>
