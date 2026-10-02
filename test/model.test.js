@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { prepare, evaluate, volumeDelay, DEFAULTS } from "../src/model.js";
+import { prepare, evaluate, volumeDelay, applyTramPriority, DEFAULTS } from "../src/model.js";
 
 const network = JSON.parse(readFileSync(new URL("../public/network.json", import.meta.url)));
 const geo = prepare(network);
@@ -55,3 +55,13 @@ check("the tram carries more people past San Felice", result.after.peoplePerHour
 
 const heavy = evaluate(geo, { ...DEFAULTS, modalShift: 0.5 });
 check("a large shift gives the lane back as speed", heavy.after.viaEmiliaKmh > result.after.viaEmiliaKmh + 2);
+
+const base = {
+  before: result.before,
+  after: { ...result.after, speeds: { ...result.after.speeds }, carFieraMin: result.after.carFieraMin, carPilastroMin: result.after.carPilastroMin },
+};
+const frequent = applyTramPriority(base, 3);
+const sparse = applyTramPriority(base, 8);
+check("a more frequent tram leaves cars less green", frequent.after.carGreenSec < sparse.after.carGreenSec);
+check("a more frequent tram makes the car trip longer", frequent.after.carFieraMin > sparse.after.carFieraMin + 1);
+check("the bypass keeps the fixed signal cycle", frequent.after.speeds.bypass === result.after.speeds.bypass);

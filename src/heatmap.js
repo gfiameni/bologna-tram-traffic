@@ -10,9 +10,8 @@ export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCar
   const active = activeLines || ["rossa"];
   const serving = scenario === "after" && active.length > 0;
   if (sample.line) {
-    const busy = Math.min(1, (sample.rank || 0.7) * hour);
     if (serving && active.includes(sample.line)) return 0.22;
-    return busy;
+    return 0;
   }
   if (sample.tram && serving && active.includes("rossa")) return Math.min(1, 0.08 * hour * flowRatio);
   if (sample.tram && !serving) return Math.min(1, rank * hour);

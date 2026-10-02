@@ -25,14 +25,13 @@
         </div>
       </div>
       <h1 data-i18n-html="page.heading">Bologna<br>tram network</h1>
-      <p class="lede" data-i18n="page.lede">
-        The planned network is Rossa, Verde, Gialla, and Blu. The travel times are from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria. Each open line takes cars off the street.
-      </p>
+      <p class="lede" data-i18n="page.lede">Traffic before and after the new tram lines.</p>
       <div class="switch" role="group" aria-label="Map scenario" data-i18n-aria="scenario.group">
-        <button type="button" id="show-before" aria-pressed="true" data-i18n="scenario.before">Map: before</button>
-        <button type="button" id="show-after" aria-pressed="false" data-i18n="scenario.after">Map: with tram</button>
+        <button type="button" id="show-before" aria-pressed="true" data-i18n="scenario.before">Before</button>
+        <button type="button" id="show-after" aria-pressed="false" data-i18n="scenario.after">After</button>
+        <button type="button" id="show-compare" aria-pressed="false" data-i18n="scenario.compare">Compare</button>
       </div>
-      <div id="lines" role="group" aria-label="Planned tram lines" data-i18n-aria="lines.group">
+      <div id="lines" class="after-only" role="group" aria-label="Planned tram lines" data-i18n-aria="lines.group">
         <label class="line-rossa"><input type="checkbox" value="rossa" checked> Rossa</label>
         <label class="line-verde"><input type="checkbox" value="verde"> Verde</label>
         <label class="line-gialla"><input type="checkbox" value="gialla"> Gialla</label>
@@ -41,12 +40,9 @@
       <button type="button" id="heat-toggle" aria-pressed="true" data-i18n="toggle.heat">City traffic</button>
       <button type="button" id="air-toggle" aria-pressed="false" data-i18n="toggle.air">Air proxy</button>
       <button type="button" id="sensors-toggle" aria-pressed="false" data-i18n="toggle.sensors">Pollution sensors</button>
-      <p id="heat-note" aria-live="polite"></p>
       <p id="air-note" aria-live="polite"></p>
       <p id="sensor-note" aria-live="polite"></p>
-      <p class="kicker" data-i18n="impact.title">Impact of the selected lines</p>
-      <p id="impact-context"></p>
-      <p class="impact-scope" data-i18n="impact.scope">Travel times are modelled only from Emilio Lepido to the Fiera and Agraria. Verde, Gialla, and Blu currently change the car-flow and pollution proxies, not their own travel times.</p>
+      <p class="kicker">Before</p>
       <section id="impact" aria-live="polite">
         <article data-factor="cars">
           <h2 data-i18n="impact.cars">Cars</h2>
@@ -59,20 +55,17 @@
           <p id="impact-bikes-detail"></p>
         </article>
         <article data-factor="transit">
-          <h2 data-i18n="impact.transit">Buses and tram</h2>
+          <h2 data-i18n="impact.transit">Transit</h2>
           <strong id="impact-transit-value"></strong>
           <p id="impact-transit-detail"></p>
         </article>
         <article data-factor="air">
-          <h2 data-i18n="impact.air">Pollution</h2>
+          <h2 data-i18n="impact.air">Exhaust</h2>
           <strong id="impact-air-value"></strong>
-          <p id="impact-air-detail"></p>
         </article>
       </section>
-      <p id="car-compare"></p>
-      <details id="numbers">
-        <summary data-i18n="impact.details">Detailed numbers</summary>
-        <p id="finding"></p>
+      <details id="numbers" class="compare-only">
+        <summary data-i18n="impact.details">All numbers</summary>
         <table>
         <thead>
           <tr>
@@ -109,18 +102,19 @@
         </select>
       </label>
       <p id="snap"></p>
-      <label class="slider">
+      <label class="slider after-only">
         <span><span data-i18n="control.shift">Car trips that switch to the tram</span> <strong id="shift-value">25%</strong></span>
         <input id="shift" type="range" min="0" max="50" step="1" value="25" />
       </label>
-      <label class="slider">
+      <label class="slider after-only">
         <span><span data-i18n="control.headway">Tram every</span> <strong id="headway-value">4.5 min</strong></span>
         <input id="headway" type="range" min="3" max="8" step="0.5" value="4.5" />
       </label>
-      <button type="button" id="predict" data-i18n="control.predict">Predict best setup</button>
+      <p id="priority-note" class="after-only"></p>
+      <button type="button" id="predict" class="after-only" data-i18n="control.predict">Predict best setup</button>
       <button type="button" id="export-report" data-i18n="control.export">Export report</button>
       <p id="predict-note"></p>
-      <div class="playback">
+      <div class="playback after-only">
         <button type="button" id="play">Pause</button>
         <div class="scale" role="group" aria-label="Simulation speed" data-i18n-aria="control.simSpeed">
           <button type="button" data-scale="20">20×</button>
@@ -134,11 +128,11 @@
       </details>
     </aside>
     <div id="legend">
-      <span><i class="swatch car"></i><span data-i18n="legend.car">Car</span></span>
-      <span><i class="swatch bike"></i><span data-i18n="legend.bike">Bicycle</span></span>
-      <span><i class="swatch bus"></i><span data-i18n="legend.bus">Bus</span></span>
-      <span><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
-      <span class="scale-key"><span data-i18n="legend.fast">fast</span><i></i><span data-i18n="legend.slow">slow</span></span>
+      <span class="after-only"><i class="swatch car"></i><span data-i18n="legend.car">Car</span></span>
+      <span class="after-only"><i class="swatch bike"></i><span data-i18n="legend.bike">Bicycle</span></span>
+      <span class="after-only"><i class="swatch bus"></i><span data-i18n="legend.bus">Bus</span></span>
+      <span class="after-only"><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
+      <span class="scale-key after-only"><span data-i18n="legend.fast">fast</span><i></i><span data-i18n="legend.slow">slow</span></span>
       <span id="heat-key"><i class="heat-swatch"></i><span data-i18n="legend.heat">car traffic</span></span>
       <span id="air-key" hidden><i class="air-down"></i><span data-i18n="legend.airDown">less exhaust</span> <i class="air-up"></i><span data-i18n="legend.airUp">more exhaust</span></span>
       <span id="sensor-key" hidden><i class="sensor-swatch"></i><span data-i18n="legend.sensor">air station</span></span>

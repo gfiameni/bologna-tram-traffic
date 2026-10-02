@@ -77,7 +77,7 @@ h1 {
   line-height: 1.25;
 }
 
-.lede, #finding, details p {
+.lede, details p {
   color: var(--muted);
   font-size: 14px;
   line-height: 1.45;
@@ -87,6 +87,7 @@ h1 {
 
 .switch, .playback, .scale {
   display: flex;
+  flex-wrap: wrap;
   gap: 12px;
 }
 
@@ -153,13 +154,19 @@ h1 {
   text-align: left;
 }
 
-#heat-note, #air-note, #sensor-note {
+#air-note, #sensor-note {
   margin: 4px 0 0;
   color: var(--muted);
   font-size: 13px;
 }
 
-#heat-note:empty, #air-note:empty, #sensor-note:empty { display: none; }
+#air-note:empty, #sensor-note:empty { display: none; }
+
+body.view-before .after-only,
+body.view-before #lines.after-only,
+body.view-before #predict.after-only,
+body.view-before #legend span.after-only,
+body:not(.view-compare) .compare-only { display: none; }
 
 .kicker {
   margin: 16px 0 4px;
@@ -167,22 +174,8 @@ h1 {
   color: var(--muted);
 }
 
-.impact-scope {
-  margin: 0 0 8px;
-  color: var(--muted);
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-
-#impact-context {
-  margin: 0 0 4px;
-  color: var(--ink);
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-
 #impact article {
-  padding: 9px 0;
+  padding: 7px 0;
   border-top: 1px solid var(--line);
 }
 
@@ -210,11 +203,12 @@ h1 {
   line-height: 1.4;
 }
 
-#car-compare {
-  margin: 5px 0 10px;
+#impact p:empty { display: none; }
+
+#priority-note {
+  margin: 0 0 8px;
   color: var(--muted);
   font-size: 12.5px;
-  line-height: 1.4;
 }
 
 #numbers {
@@ -230,8 +224,6 @@ h1 {
 
 #numbers table { margin: 6px 0 0; }
 
-#finding { margin: 8px 0 14px; }
-
 .topline {
   display: flex;
   align-items: center;
@@ -243,7 +235,6 @@ h1 {
 
 .lang button { color: var(--muted); }
 
-#car-compare:empty { display: none; }
 
 table {
   width: 100%;

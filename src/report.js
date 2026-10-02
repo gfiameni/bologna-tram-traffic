@@ -1,4 +1,4 @@
-import { finding } from "./model.js";
+import { finding, applyTramPriority } from "./model.js";
 
 export function caseKey(model, scenario, shift, headway, hour) {
   return `${model}|${scenario}|${shift.toFixed(2)}|${headway.toFixed(1)}|${String(hour).padStart(2, "0")}`;
@@ -18,7 +18,8 @@ export function searchBestSetup(catalog, model, hour) {
       const before = catalog.cases[caseKey(model, "before", shiftValue, headwayMin, hour)];
       const after = catalog.cases[caseKey(model, "after", shiftValue, headwayMin, hour)];
       if (!before || !after) continue;
-      const row = { shiftValue, headwayMin, score: setupScore(before, after, headwayMin), before, after };
+      const timed = applyTramPriority({ before, after }, headwayMin);
+      const row = { shiftValue, headwayMin, score: setupScore(timed.before, timed.after, headwayMin), before: timed.before, after: timed.after };
       ranked.push(row);
       if (!best || row.score > best.score) best = row;
     }
