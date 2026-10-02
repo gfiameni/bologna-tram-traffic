@@ -352,51 +352,69 @@ function otherModels() {
     .filter(Boolean);
 }
 
-function paintCar(current) {
-  const verdictNode = document.getElementById("car-verdict");
-  const why = document.getElementById("car-why");
+function paintImpact(current) {
   const compare = document.getElementById("car-compare");
   const { before, after } = current;
-  document.getElementById("car-before").textContent = `${Math.round(before.carFieraMin)}`;
-  document.getElementById("car-after").textContent = `${Math.round(after.carFieraMin)}`;
-  document.getElementById("car-agraria-before").textContent = `${Math.round(before.carPilastroMin)}`;
-  document.getElementById("car-agraria-after").textContent = `${Math.round(after.carPilastroMin)}`;
-  if (!state.lines.includes("rossa")) {
-    verdictNode.dataset.verdict = "same";
-    verdictNode.querySelector("strong").textContent = t("car.same");
-    verdictNode.querySelector("span").textContent = t("car.rossaOff");
-    why.textContent = "";
-    compare.textContent = "";
-    return;
-  }
-  const change = carChange(current, "carFieraMin");
-  const agraria = carChange(current, "carPilastroMin");
-  const verdict = change.verdict === agraria.verdict
-    ? change.verdict
-    : change.verdict === "same"
-      ? agraria.verdict
-      : agraria.verdict === "same"
-        ? change.verdict
-        : "mixed";
-  const leg = (item) => {
-    if (item.verdict === "slower") return t("car.deltaLonger", { n: item.rounded });
-    if (item.verdict === "faster") return t("car.deltaSooner", { n: Math.abs(item.rounded) });
-    return t("car.deltaSame");
+  const changeText = (change) => {
+    if (change.verdict === "slower") return t("impact.longer", { n: change.rounded });
+    if (change.verdict === "faster") return t("impact.sooner", { n: Math.abs(change.rounded) });
+    return t("impact.same");
   };
-  verdictNode.dataset.verdict = verdict;
-  verdictNode.querySelector("strong").textContent = t(`car.${verdict}`);
-  verdictNode.querySelector("span").textContent = t("car.mixedText", {
-    fiera: leg(change),
-    agraria: leg(agraria),
+
+  const fiera = carChange(current, "carFieraMin");
+  const agraria = carChange(current, "carPilastroMin");
+  const flowChange = after.carFlow - before.carFlow;
+  const flowPercent = Math.round((Math.abs(flowChange) / Math.max(before.carFlow, 1)) * 100);
+  const carsValue = document.getElementById("impact-cars-value");
+  if (flowChange < -1) {
+    carsValue.textContent = t("impact.carsFewer", {
+      n: count(state.lang, Math.abs(flowChange)),
+      pct: flowPercent,
+    });
+  } else if (flowChange > 1) {
+    carsValue.textContent = t("impact.carsMore", {
+      n: count(state.lang, flowChange),
+      pct: flowPercent,
+    });
+  } else {
+    carsValue.textContent = t("impact.carsSame");
+  }
+  document.getElementById("impact-cars-detail").textContent = t("impact.carTrips", {
+    fieraBefore: Math.round(before.carFieraMin),
+    fieraAfter: Math.round(after.carFieraMin),
+    fieraChange: changeText(fiera),
+    agrariaBefore: Math.round(before.carPilastroMin),
+    agrariaAfter: Math.round(after.carPilastroMin),
+    agrariaChange: changeText(agraria),
   });
-  const vBefore = Math.round(before.viaEmiliaKmh);
-  const vAfter = Math.round(after.viaEmiliaKmh);
-  why.textContent = t(vBefore === vAfter ? "car.whyFlat" : "car.why", {
-    before: count(state.lang, before.carFlow),
-    after: count(state.lang, after.carFlow),
-    vBefore,
-    vAfter,
+
+  const bikeChange = Math.round(after.bikeFieraMin - before.bikeFieraMin);
+  document.getElementById("impact-bikes-value").textContent = Math.abs(bikeChange) < 1
+    ? t("impact.bikesSame")
+    : t("impact.bikesChange", { n: Math.abs(bikeChange) });
+  document.getElementById("impact-bikes-detail").textContent = t("impact.bikesDetail", {
+    before: Math.round(before.bikeFieraMin),
+    after: Math.round(after.bikeFieraMin),
   });
+
+  const rossaOn = state.lines.includes("rossa");
+  document.getElementById("impact-transit-value").textContent = rossaOn
+    ? t("impact.transitReplace")
+    : t("impact.transitNoChange");
+  document.getElementById("impact-transit-detail").textContent = rossaOn
+    ? t("impact.transitTrips", {
+      fieraBefore: Math.round(before.transitFieraMin),
+      fieraAfter: Math.round(after.transitFieraMin),
+      agrariaBefore: Math.round(before.transitPilastroMin),
+      agrariaAfter: Math.round(after.transitPilastroMin),
+    })
+    : t("impact.transitOff");
+
+  document.getElementById("impact-air-value").textContent = state.lines.length
+    ? t("impact.airShift")
+    : t("impact.airSame");
+  document.getElementById("impact-air-detail").textContent = t("impact.airDetail");
+
   const others = otherModels();
   if (!others.length) {
     compare.textContent = "";
@@ -408,7 +426,7 @@ function paintCar(current) {
       : `${item.rounded > 0 ? "+" : "−"}${Math.abs(item.rounded)} min`;
     return `${t(`model.${item.id}`)} ${delta}`;
   });
-  const verdicts = new Set([change.verdict, ...others.map((item) => item.verdict)]);
+  const verdicts = new Set([fiera.verdict, ...others.map((item) => item.verdict)]);
   const disagree = verdicts.has("slower") && verdicts.has("faster");
   compare.textContent = `${t("car.compare", { list: list.join(", ") })}${disagree ? ` ${t("car.disagree")}` : ""}`;
 }
@@ -431,7 +449,13 @@ function paintPanel(options = {}) {
   } else {
     snap.textContent = "";
   }
-  paintCar(current);
+  document.getElementById("impact-context").textContent = t("impact.context", {
+    model: t(`model.${state.model}`),
+    hour: hourLabel(state.hour),
+    pct: Math.round(state.params.modalShift * 100),
+    headway: state.params.tramHeadwayMin.toLocaleString(locale(state.lang)),
+  });
+  paintImpact(current);
   const extras = state.lines.filter((id) => id !== "rossa");
   const extraNames = extras.map((id) => linesPlan?.lines?.find((line) => line.id === id)?.name || id);
   const joined = joinNames(state.lang, extraNames);

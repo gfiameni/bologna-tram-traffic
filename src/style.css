@@ -162,33 +162,68 @@ h1 {
   color: var(--muted);
 }
 
-.hero {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px 10px;
+.impact-scope {
+  margin: 0 0 8px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
-.hero .trip {
-  grid-column: 1 / -1;
-  margin: 10px 0 0;
-  font-size: 14px;
+#impact-context {
+  margin: 0 0 4px;
+  color: var(--ink);
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
-.hero div {
-  padding: 2px 0 2px;
+#impact article {
+  padding: 9px 0;
+  border-top: 1px solid var(--line);
 }
 
-.hero span {
+#impact h2 {
+  margin: 0 0 2px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+#impact strong {
   display: block;
-  font-size: 28px;
+  color: var(--accent);
+  font-size: 14px;
   font-weight: 600;
-  line-height: 1.1;
+  line-height: 1.4;
 }
 
-.hero small {
+#impact article[data-factor="air"] strong { color: #f5b942; }
+
+#impact p {
+  margin: 2px 0 0;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+#car-compare {
+  margin: 5px 0 10px;
+  color: var(--muted);
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+
+#numbers {
+  margin: 8px 0 14px;
+  border-top: 1px solid var(--line);
+  padding-top: 8px;
+}
+
+#numbers > summary {
   color: var(--muted);
   font-size: 13px;
 }
+
+#numbers table { margin: 6px 0 0; }
 
 #finding { margin: 8px 0 14px; }
 
@@ -203,29 +238,7 @@ h1 {
 
 .lang button { color: var(--muted); }
 
-#car-verdict {
-  margin: 8px 0 4px;
-  font-size: 14px;
-  line-height: 1.4;
-}
-
-#car-verdict strong {
-  display: block;
-  font-weight: 600;
-  color: var(--muted);
-}
-
-#car-verdict[data-verdict="slower"] strong { color: #e08a5a; }
-#car-verdict[data-verdict="faster"] strong { color: var(--accent); }
-
-#car-why, #car-compare {
-  margin: 4px 0;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.4;
-}
-
-#car-why:empty, #car-compare:empty { display: none; }
+#car-compare:empty { display: none; }
 
 table {
   width: 100%;
