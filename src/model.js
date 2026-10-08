@@ -14,7 +14,7 @@ export const DEFAULTS = {
   tramSpeedMps: 7.6,
   centerSpeedMps: 6.8,
   dwellSec: 26,
-  freeSpeedMps: 12.5,
+  freeSpeedMps: 30 / 3.6,
   capPerLane: 900,
   lanes: 2,
 };

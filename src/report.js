@@ -93,7 +93,7 @@ export function reportHtml({
     return `<tr class="${chosen ? "chosen" : ""}"><td>${Math.round(row.shiftValue * 100)}%</td><td>${row.headwayMin} min</td><td>${escapeHtml(count(row.after.peoplePerHour))}</td><td>${escapeHtml(count(row.after.unserved))}</td><td>${extra > 0 ? `+${extra} min` : extra < 0 ? `${extra} min` : "same"}</td><td>${chosen}</td></tr>`;
   }).join("");
   const demand = hourSlot
-    ? `<p>${escapeHtml(count(hourSlot.cars))} cars, ${escapeHtml(count(hourSlot.buses))} buses, and ${escapeHtml(count(hourSlot.bikes))} bicycles an hour are the open-data demand for this hour.</p>`
+    ? `<p>${escapeHtml(count(hourSlot.cars))} cars, ${escapeHtml(count(hourSlot.buses))} buses, and ${escapeHtml(count(hourSlot.bikes))} bicycles an hour are the open-data demand for this hour. Car demand is the weekday loop count on Viale Ercolani (south) and Viale Pietramellara (north-east). The model sends those cars in at Emilio Lepido. Cars that get through arrive at Porta San Felice. The queue is the cars still short of it.</p>`
     : "";
   const notesHtml = notes.filter(Boolean).map((note) => `<li>${escapeHtml(note)}</li>`).join("");
   return `<!DOCTYPE html>

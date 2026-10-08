@@ -9,9 +9,11 @@ DT = 0.5
 HORIZON = 280.0
 WARMUP = 80.0
 
+# Cars and buses are capped at the 30 km/h urban limit. Bicycles stay slower than that.
+LIMIT_MPS = 30 / 3.6
 PARAMS = {
-    0: (13.9, 1.2, 2.0, 1.2, 2.0, 5.0),
-    1: (11.5, 0.8, 1.5, 1.5, 3.0, 12.0),
+    0: (LIMIT_MPS, 1.2, 2.0, 1.2, 2.0, 5.0),
+    1: (LIMIT_MPS, 0.8, 1.5, 1.5, 3.0, 12.0),
     2: (5.4, 0.9, 1.4, 0.8, 1.0, 2.0),
 }
 

@@ -5,7 +5,9 @@ from pathlib import Path
 from sim.geometry import polyline_length
 
 PIECES = ("trunk", "bypass", "city", "fiera", "pilastro")
-FREE_MPS = {"trunk": 13.2, "bypass": 12.4, "city": 11.2, "fiera": 12.6, "pilastro": 12.0}
+# Bologna's Città 30 limit on urban streets. 30 km/h. The motorway tangenziale is not in this network.
+CITY_LIMIT_MPS = 30 / 3.6
+FREE_MPS = {name: CITY_LIMIT_MPS for name in PIECES}
 ROOT = Path(__file__).resolve().parents[1]
 
 

@@ -50,6 +50,72 @@ body {
 
 #vehicles.dim { opacity: 0.35; }
 
+.queue-map-icon {
+  background: transparent;
+  border: 0;
+}
+
+.queue-bubble-wrap {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  transform: translate(-50%, -50%);
+  color: #ffffff;
+  font-family: Outfit, sans-serif;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.queue-bubble-wrap.compare-before {
+  transform: translate(calc(-50% - 18px), calc(-50% - 16px));
+}
+
+.queue-bubble-wrap.compare-after {
+  transform: translate(calc(-50% + 18px), calc(-50% + 16px));
+}
+
+.queue-phase {
+  padding: 2px 5px;
+  background: #1e1e1e;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.queue-bubble {
+  display: grid;
+  width: var(--queue-size);
+  height: var(--queue-size);
+  place-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 50%;
+  background: rgba(232, 168, 92, 0.78);
+}
+
+.queue-bubble strong {
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.queue-bubble small {
+  margin-top: 2px;
+  font-size: 10px;
+  line-height: 1;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.7);
+}
+
+.queue-bubble-wrap.baseline .queue-bubble { background: rgba(190, 190, 190, 0.78); }
+.queue-bubble-wrap.less .queue-bubble { background: rgba(140, 210, 70, 0.78); }
+.queue-bubble-wrap.more .queue-bubble { background: rgba(230, 90, 80, 0.78); }
+.queue-bubble-wrap.same .queue-bubble { background: rgba(240, 190, 70, 0.78); }
+.queue-bubble-wrap.current .queue-bubble { background: rgba(232, 168, 92, 0.78); }
+
 #panel {
   position: absolute;
   z-index: 500;
@@ -94,6 +160,7 @@ h1 {
 .switch button, .playback > button, .scale button,
 .lang button,
 #heat-toggle,
+#queue-toggle,
 #air-toggle,
 #sensors-toggle,
 #play-day,
@@ -115,6 +182,7 @@ h1 {
 .scale button[aria-pressed="true"],
 .lang button[aria-pressed="true"],
 #heat-toggle[aria-pressed="true"],
+#queue-toggle[aria-pressed="true"],
 #air-toggle[aria-pressed="true"],
 #sensors-toggle[aria-pressed="true"],
 #play-day[aria-pressed="true"] {
@@ -146,6 +214,7 @@ h1 {
 #lines input { accent-color: currentColor; }
 
 #heat-toggle,
+#queue-toggle,
 #air-toggle,
 #sensors-toggle,
 #play-day {
@@ -219,6 +288,11 @@ body:not(.view-compare) .compare-only { display: none; }
 }
 
 #impact p:empty { display: none; }
+
+#impact-cars-source {
+  color: var(--muted);
+  font-size: 12.5px;
+}
 
 #priority-note {
   margin: 0 0 8px;

@@ -65,3 +65,8 @@ const afterPlaces = placeCongestion(centre, lines, { ...viewAfter, activeLines: 
 check("bars are sorted with the busiest place first", beforePlaces.every((place, index) => index === 0 || place.level <= beforePlaces[index - 1].level));
 check("an open line drops below the avenues", level(afterPlaces, "rossa") < level(afterPlaces, "avenues") && level(afterPlaces, "verde") < level(beforePlaces, "verde"));
 check("the bypass takes more congestion after Rossa", level(afterPlaces, "bypass") > level(beforePlaces, "bypass"));
+const approach = { approach: true, rank: 0.8 };
+check(
+  "a longer queue heats Via Emilia before Porta San Felice",
+  intensity(approach, { ...viewMorning, queueShare: 0.85 }) > intensity(approach, { ...viewMorning, queueShare: 0.2 }),
+);

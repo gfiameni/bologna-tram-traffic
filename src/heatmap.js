@@ -1,14 +1,17 @@
+import { approachHeat } from "./queue.js";
+
 export function hourCars(catalog, hour, fallback = 1155) {
   const slot = catalog?.hours?.find((item) => item.hour === hour);
   return slot?.cars ?? fallback;
 }
 
-export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow, activeLines }) {
+export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow, activeLines, queueShare = 0 }) {
   const hour = Math.max(0.12, cars / Math.max(peakCars || 1233, 1));
   const rank = sample.rank;
   const flowRatio = Math.max(0, Math.min(1.5, carFlow / Math.max(beforeCarFlow, 1)));
   const active = activeLines || ["rossa"];
   const serving = scenario === "after" && active.length > 0;
+  if (sample.approach) return approachHeat((sample.rank || 0.8) * hour, queueShare);
   if (sample.bypass) {
     const rossaOpen = serving && active.includes("rossa");
     return Math.min(1, rank * hour * (rossaOpen ? 1.2 + 0.25 * flowRatio : 1));
@@ -113,8 +116,18 @@ export function createHeat(map, canvas, centre, plan, extra = []) {
       if (!sample.line && !sample.bypass && stride > 1 && index % stride) continue;
       const point = map.latLngToContainerPoint([sample.lat, sample.lon]);
       if (point.x < -40 || point.y < -40 || point.x > size + 40 || point.y > height + 40) continue;
-      const beforeLevel = intensity(sample, { ...view, scenario: "before", carFlow: view.beforeCarFlow });
-      const afterLevel = intensity(sample, { ...view, scenario: "after", carFlow: view.afterCarFlow ?? view.carFlow });
+      const beforeLevel = intensity(sample, {
+        ...view,
+        scenario: "before",
+        carFlow: view.beforeCarFlow,
+        queueShare: view.beforeQueueShare ?? 0,
+      });
+      const afterLevel = intensity(sample, {
+        ...view,
+        scenario: "after",
+        carFlow: view.afterCarFlow ?? view.carFlow,
+        queueShare: view.afterQueueShare ?? view.queueShare ?? 0,
+      });
       const value = view.mode === "compare" ? Math.abs(afterLevel - beforeLevel) : intensity(sample, view);
       if (value < 0.05) continue;
       const [red, green, blue] = view.mode === "compare" ? changeColor(afterLevel - beforeLevel) : heatColor(value);

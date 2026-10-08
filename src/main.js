@@ -8,6 +8,7 @@ import { createHeat, hourCars, placeCongestion } from "./heatmap.js";
 import { createAir, stationSummary } from "./air.js";
 import { extraShift, withLines } from "./lines.js";
 import { createTraffic } from "./traffic.js";
+import { queueChange, queueDiameter, queueShare } from "./queue.js";
 
 async function main() {
 const network = await fetch("/network.json").then((response) => response.json());
@@ -20,6 +21,7 @@ const state = {
   model: "ctm",
   hour: 8,
   heatmap: true,
+  queues: true,
   air: false,
   sensors: false,
   lines: ["rossa"],
@@ -120,10 +122,22 @@ L.control.scale({ imperial: false, position: "topright" }).addTo(map);
 map.createPane("tramlines");
 map.getPane("tramlines").style.zIndex = 450;
 
+map.createPane("queues");
+map.getPane("queues").style.zIndex = 625;
+map.getPane("queues").style.pointerEvents = "none";
+
 const plannedLines = [];
 const bypassSamples = (geo.pieces.car.bypass?.points || [])
   .filter((point, index) => index % 2 === 0)
   .map((point) => ({ lat: point.lat, lon: point.lon, bypass: true, rank: 0.7 }));
+const trunkPoints = geo.pieces.car.trunk?.points || [];
+const approachSamples = trunkPoints
+  .filter((point, index) => index % 3 === 0)
+  .map((point) => ({ lat: point.lat, lon: point.lon, approach: true, rank: 0.8 }));
+const queueStops = [0, 0.28, 0.52, 0.76, 1].map((share) => {
+  const index = Math.min(trunkPoints.length - 1, Math.round(share * (trunkPoints.length - 1)));
+  return trunkPoints[index];
+}).filter(Boolean);
 for (const poly of Object.values(geo.pieces.tram)) {
   const latlngs = poly.points.map((p) => [p.lat, p.lon]);
   const casing = L.polyline(latlngs, {
@@ -218,6 +232,9 @@ const sensorLayer = airData?.stations?.length
   }))
   : null;
 
+const portaSanFelice = network.stops.find((stop) => stop.id === "porta-san-felice");
+const queueLayer = L.layerGroup().addTo(map);
+
 const bounds = L.latLngBounds(network.stops.map((stop) => [stop.lat, stop.lon]));
 for (const line of linesPlan?.lines || []) {
   for (const segment of line.segments || []) bounds.extend(segment);
@@ -240,7 +257,7 @@ resize();
 window.addEventListener("resize", resize);
 
 const heatCanvas = document.getElementById("heat");
-const heat = centre ? createHeat(map, heatCanvas, centre, linesPlan, bypassSamples) : null;
+const heat = centre ? createHeat(map, heatCanvas, centre, linesPlan, [...bypassSamples, ...approachSamples]) : null;
 if (heat) {
   const heatResize = () => {
     heat.resize();
@@ -253,6 +270,8 @@ if (heat) {
 function paintHeat() {
   if (!heat) return;
   const current = shown();
+  const beforeCars = carAccount(current.before, "before");
+  const afterCars = carAccount(current.after, "after");
   const carFlow = current[state.scenario].carFlow;
   const beforeCarFlow = current.before.carFlow;
   heat.paint({
@@ -264,6 +283,9 @@ function paintHeat() {
     carFlow,
     beforeCarFlow,
     afterCarFlow: current.after.carFlow,
+    queueShare: queueShare(state.view === "before" ? beforeCars.queued : afterCars.queued, state.view === "before" ? beforeCars.demand : afterCars.demand),
+    beforeQueueShare: queueShare(beforeCars.queued, beforeCars.demand),
+    afterQueueShare: queueShare(afterCars.queued, afterCars.demand),
     activeLines: state.lines,
   });
   document.getElementById("vehicles").classList.toggle("dim", state.heatmap || state.air);
@@ -349,6 +371,52 @@ function carLine(account, compare) {
   });
 }
 
+function queueBubble(point, account, phase, trend, offset, scale, labeled) {
+  const size = Math.round(queueDiameter(account.queued, scale) * (labeled ? 0.78 : 0.46));
+  const phaseText = t(`queue.${phase}`);
+  const queueText = t("queue.queued");
+  const label = t("queue.label", {
+    phase: phaseText,
+    queue: count(state.lang, account.queued),
+  });
+  const html = `
+    <div class="queue-bubble-wrap ${offset} ${trend} ${labeled ? "labeled" : "dot"}" style="--queue-size:${size}px" role="img" aria-label="${label}">
+      ${labeled ? `<span class="queue-phase">${phaseText}</span>` : ""}
+      <span class="queue-bubble">
+        ${labeled ? `<strong>${count(state.lang, account.queued)}</strong><small>${queueText}</small>` : ""}
+      </span>
+    </div>`;
+  return L.marker([point.lat, point.lon], {
+    pane: "queues",
+    interactive: false,
+    icon: L.divIcon({
+      className: "queue-map-icon",
+      html,
+      iconSize: [1, 1],
+      iconAnchor: [0, 0],
+    }),
+  });
+}
+
+function paintQueues(current) {
+  queueLayer.clearLayers();
+  document.getElementById("queue-toggle").setAttribute("aria-pressed", String(state.queues));
+  if (!state.queues || !queueStops.length) return;
+  const before = carAccount(current.before, "before");
+  const after = carAccount(current.after, "after");
+  const scale = Math.max(1000, before.queued, after.queued);
+  queueStops.forEach((point, index) => {
+    const labeled = index === queueStops.length - 1;
+    if (state.view === "compare") {
+      queueBubble(point, before, "before", "baseline", "compare-before", scale, labeled).addTo(queueLayer);
+      queueBubble(point, after, "after", queueChange(before.queued, after.queued), "compare-after", scale, labeled).addTo(queueLayer);
+      return;
+    }
+    const account = state.view === "after" ? after : before;
+    queueBubble(point, account, state.view, "current", "single", scale, labeled).addTo(queueLayer);
+  });
+}
+
 function paintImpact(current) {
   const { before, after } = current;
   const rossaOn = state.lines.includes("rossa");
@@ -357,6 +425,7 @@ function paintImpact(current) {
   const set = (id, text) => {
     document.getElementById(id).textContent = text;
   };
+  set("impact-cars-source", t("impact.carsSource"));
   const trips = (record, fieraKey, agrariaKey) => t("impact.trips", {
     fiera: Math.round(record[fieraKey]),
     agraria: Math.round(record[agrariaKey]),
@@ -464,6 +533,7 @@ function paintPanel(options = {}) {
     snap.textContent = "";
   }
   paintImpact(current);
+  paintQueues(current);
   paintCongestion(current);
   const rows = {
     carFieraMin: [before.carFieraMin, after.carFieraMin],
@@ -619,6 +689,11 @@ heatToggle.addEventListener("click", () => {
   if (state.heatmap) state.air = false;
   paintHeat();
   paintAir();
+});
+
+document.getElementById("queue-toggle").addEventListener("click", () => {
+  state.queues = !state.queues;
+  paintQueues(shown());
 });
 
 const airCanvas = document.getElementById("air");
