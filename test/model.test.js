@@ -64,4 +64,5 @@ const frequent = applyTramPriority(base, 3);
 const sparse = applyTramPriority(base, 8);
 check("a more frequent tram leaves cars less green", frequent.after.carGreenSec < sparse.after.carGreenSec);
 check("a more frequent tram makes the car trip longer", frequent.after.carFieraMin > sparse.after.carFieraMin + 1);
+check("a more frequent tram slows Via Emilia", frequent.after.viaEmiliaKmh < sparse.after.viaEmiliaKmh - 1);
 check("the bypass keeps the fixed signal cycle", frequent.after.speeds.bypass === result.after.speeds.bypass);

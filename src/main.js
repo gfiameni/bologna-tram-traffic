@@ -5,10 +5,20 @@ import { DEFAULTS, prepare, evaluate, applyTramPriority, carGreenSec } from "./m
 import { LANGS, tr, count, hourText, noteText, locale } from "./i18n.js";
 import { caseKey, reportHtml, downloadReport, searchBestSetup } from "./report.js";
 import { createHeat, hourCars, placeCongestion } from "./heatmap.js";
-import { createAir, stationSummary } from "./air.js";
+import { stationSummary } from "./air.js";
 import { extraShift, withLines } from "./lines.js";
 import { createTraffic } from "./traffic.js";
 import { queueChange, queueDiameter, queueShare } from "./queue.js";
+import {
+  airBand,
+  changeTrend,
+  levelBand,
+  measureDiameter,
+  noiseDb,
+  percentChange,
+  pickAnchors,
+  spreadBoxes,
+} from "./measures.js";
 
 async function main() {
 const network = await fetch("/network.json").then((response) => response.json());
@@ -20,10 +30,7 @@ const state = {
   timeScale: 40,
   model: "ctm",
   hour: 8,
-  heatmap: true,
-  queues: true,
-  air: false,
-  sensors: false,
+  layers: { traffic: true, queues: true, air: false, noise: false },
   lines: ["rossa"],
   params: { ...DEFAULTS },
   lang: startLang(),
@@ -100,8 +107,14 @@ function pair() {
   const before = catalog.cases[caseKey(state.model, "before", shift, headway, state.hour)];
   const after = catalog.cases[caseKey(state.model, "after", shift, headway, state.hour)];
   if (!before || !after) return evaluate(geo, state.params);
-  const exact = Math.abs(shift - state.params.modalShift) < 0.001 && Math.abs(headway - state.params.tramHeadwayMin) < 0.01;
-  return applyTramPriority({ before, after, snapped: !exact, shift, headway }, headway);
+  const shiftSnapped = Math.abs(shift - state.params.modalShift) >= 0.001;
+  return applyTramPriority({
+    before,
+    after,
+    snapped: shiftSnapped,
+    shift,
+    headway: state.params.tramHeadwayMin,
+  }, state.params.tramHeadwayMin);
 }
 
 let metrics = pair();
@@ -125,6 +138,12 @@ map.getPane("tramlines").style.zIndex = 450;
 map.createPane("queues");
 map.getPane("queues").style.zIndex = 625;
 map.getPane("queues").style.pointerEvents = "none";
+map.createPane("leaders");
+map.getPane("leaders").style.zIndex = 635;
+map.getPane("leaders").style.pointerEvents = "none";
+map.createPane("labels");
+map.getPane("labels").style.zIndex = 640;
+map.getPane("labels").style.pointerEvents = "none";
 
 const plannedLines = [];
 const bypassSamples = (geo.pieces.car.bypass?.points || [])
@@ -138,6 +157,20 @@ const queueStops = [0, 0.28, 0.52, 0.76, 1].map((share) => {
   const index = Math.min(trunkPoints.length - 1, Math.round(share * (trunkPoints.length - 1)));
   return trunkPoints[index];
 }).filter(Boolean);
+function samplesFor(id) {
+  const samples = centre?.samples || [];
+  if (id === "centre") return samples.filter((sample) => !sample.ring && !sample.tram);
+  if (id === "avenues") return samples.filter((sample) => sample.ring);
+  if (id === "bypass") return bypassSamples;
+  const line = linesPlan?.lines?.find((item) => item.id === id)?.samples || [];
+  const gate = queueStops.at(-1);
+  return id === "rossa" && gate ? line.filter((sample) => sample.lon > gate.lon) : line;
+}
+const PLACES = ["centre", "rossa", "verde", "gialla", "blu", "avenues", "bypass"];
+const placeAnchors = pickAnchors(
+  PLACES.map((id) => ({ id, line: ["rossa", "verde", "gialla", "blu"].includes(id), samples: samplesFor(id) })),
+  [...queueStops, ...(airData?.stations || [])],
+);
 for (const poly of Object.values(geo.pieces.tram)) {
   const latlngs = poly.points.map((p) => [p.lat, p.lon]);
   const casing = L.polyline(latlngs, {
@@ -195,45 +228,8 @@ if (linesPlan) {
   }
 }
 
-map.createPane("sensors");
-const sensorPane = map.getPane("sensors");
-sensorPane.style.zIndex = "640";
-sensorPane.style.pointerEvents = "none";
-
-const sensorLayer = airData?.stations?.length
-  ? L.layerGroup(airData.stations.map((station) => {
-    const direction = {
-      "via-chiarini": "left",
-      "porta-san-felice": "bottom",
-      "giardini-margherita": "right",
-    }[station.id] || "right";
-    const offset = {
-      left: [-8, 0],
-      top: [0, -10],
-      bottom: [0, 10],
-      right: [8, 0],
-    }[direction];
-    const marker = L.circleMarker([station.lat, station.lon], {
-      pane: "sensors",
-      radius: 7,
-      color: "#f4efe4",
-      weight: 2,
-      fillColor: "#4c1d95",
-      fillOpacity: 1,
-    });
-    marker.bindTooltip(station.name, {
-      permanent: true,
-      direction,
-      className: "sensor-tip",
-      offset,
-    });
-    marker.bindPopup(() => `<strong>${station.name}</strong><br>${stationSummary(station, state.lang)}`);
-    return marker;
-  }))
-  : null;
-
-const portaSanFelice = network.stops.find((stop) => stop.id === "porta-san-felice");
 const queueLayer = L.layerGroup().addTo(map);
+const labelLayer = L.layerGroup().addTo(map);
 
 const bounds = L.latLngBounds(network.stops.map((stop) => [stop.lat, stop.lon]));
 for (const line of linesPlan?.lines || []) {
@@ -275,7 +271,7 @@ function paintHeat() {
   const carFlow = current[state.scenario].carFlow;
   const beforeCarFlow = current.before.carFlow;
   heat.paint({
-    heatmap: state.heatmap,
+    heatmap: state.layers.traffic,
     mode: state.view,
     scenario: state.scenario,
     cars: hourCars(catalog, state.hour),
@@ -288,9 +284,8 @@ function paintHeat() {
     afterQueueShare: queueShare(afterCars.queued, afterCars.demand),
     activeLines: state.lines,
   });
-  document.getElementById("vehicles").classList.toggle("dim", state.heatmap || state.air);
-  document.getElementById("heat-toggle").setAttribute("aria-pressed", String(state.heatmap));
-  document.querySelector(".scale-key").hidden = !state.heatmap;
+  document.getElementById("vehicles").classList.toggle("dim", state.layers.traffic);
+  document.querySelector(".scale-key").hidden = !state.layers.traffic;
 }
 
 function paintRoutes() {
@@ -317,7 +312,6 @@ function paintRoutes() {
     }
   }
   paintHeat();
-  paintAir();
 }
 
 function formatMinutes(value) {
@@ -352,23 +346,45 @@ function carAccount(record, scenario) {
   return { demand, passing, queued: Math.max(0, demand - passing) };
 }
 
-function carLine(account, compare) {
+function congestionLines(beforeCars, afterCars) {
   const n = (value) => count(state.lang, value);
-  if (!compare) {
-    return account.queued < 1
-      ? t("impact.carsClear", { demand: n(account.demand), pass: n(account.passing) })
-      : t("impact.carsNow", { demand: n(account.demand), pass: n(account.passing), queue: n(account.queued) });
+  if (state.view !== "compare") {
+    const account = state.view === "after" ? afterCars : beforeCars;
+    return [
+      account.queued < 1 ? t("congestion.none") : t("congestion.now", { queue: n(account.queued) }),
+      t("congestion.flow", { demand: n(account.demand), pass: n(account.passing) }),
+    ];
   }
-  const [before, after] = compare;
-  const queued = before.queued >= 1 || after.queued >= 1;
-  return t(queued ? "impact.carsCompare" : "impact.carsCompareClear", {
-    demandBefore: n(before.demand),
-    demandAfter: n(after.demand),
-    passBefore: n(before.passing),
-    passAfter: n(after.passing),
-    queueBefore: n(before.queued),
-    queueAfter: n(after.queued),
-  });
+  const queued = beforeCars.queued >= 1 || afterCars.queued >= 1;
+  return [
+    queued
+      ? t("congestion.compare", { before: n(beforeCars.queued), after: n(afterCars.queued) })
+      : t("congestion.none"),
+    t("congestion.flowCompare", {
+      demandBefore: n(beforeCars.demand),
+      demandAfter: n(afterCars.demand),
+      passBefore: n(beforeCars.passing),
+      passAfter: n(afterCars.passing),
+    }),
+  ];
+}
+
+function placeLevels(current) {
+  const base = {
+    cars: hourCars(catalog, state.hour),
+    peakCars: centre?.peakCars,
+    beforeCarFlow: current.before.carFlow,
+    activeLines: state.lines,
+  };
+  const levelOf = (places) => Object.fromEntries(places.map((place) => [place.id, place.level]));
+  return {
+    before: levelOf(placeCongestion(centre, linesPlan, { ...base, scenario: "before", carFlow: current.before.carFlow })),
+    after: levelOf(placeCongestion(centre, linesPlan, { ...base, scenario: "after", carFlow: current.after.carFlow })),
+  };
+}
+
+function shownPlaces() {
+  return PLACES.filter((id) => placeAnchors[id] && (!["rossa", "verde", "gialla", "blu"].includes(id) || state.lines.includes(id)));
 }
 
 function queueBubble(point, account, phase, trend, offset, scale, labeled) {
@@ -400,8 +416,7 @@ function queueBubble(point, account, phase, trend, offset, scale, labeled) {
 
 function paintQueues(current) {
   queueLayer.clearLayers();
-  document.getElementById("queue-toggle").setAttribute("aria-pressed", String(state.queues));
-  if (!state.queues || !queueStops.length) return;
+  if (!state.layers.queues || !queueStops.length) return;
   const before = carAccount(current.before, "before");
   const after = carAccount(current.after, "after");
   const scale = Math.max(1000, before.queued, after.queued);
@@ -417,88 +432,205 @@ function paintQueues(current) {
   });
 }
 
-function paintImpact(current) {
+function labelMarker(point, html) {
+  return L.marker([point.lat, point.lon], {
+    pane: "labels",
+    interactive: false,
+    icon: L.divIcon({
+      className: "measure-map-icon",
+      html,
+      iconSize: [1, 1],
+      iconAnchor: [0, 0],
+    }),
+  });
+}
+
+function signed(value, digits = 0) {
+  const text = Math.abs(value).toLocaleString(locale(state.lang), { maximumFractionDigits: digits });
+  return `${value > 0 ? "+" : value < 0 ? "−" : ""}${text}`;
+}
+
+function areaRow(measure, before, after) {
+  const name = t(`area.${measure}`);
+  let value;
+  let tone;
+  if (state.view === "compare") {
+    const change = measure === "noise" ? noiseDb(before, after) : percentChange(before, after);
+    tone = changeTrend(change, measure === "noise" ? 0.5 : 4);
+    value = tone === "same" ? t("area.same") : measure === "noise" ? `${signed(change, 1)} dB` : `${signed(change)}%`;
+  } else {
+    tone = levelBand(state.view === "before" ? before : after);
+    value = t(`level.${measure}.${tone}`);
+  }
+  return { text: `${name} ${value}`, html: `<span class="area-row ${tone}"><b>${name}</b> ${value}</span>` };
+}
+
+function queueBoxes(current) {
+  if (!state.layers.queues) return [];
+  const before = carAccount(current.before, "before");
+  const after = carAccount(current.after, "after");
+  const queued = Math.max(before.queued, after.queued);
+  const scale = Math.max(1000, queued);
+  const offset = state.view === "compare" ? 36 : 0;
+  return queueStops.map((point, index) => {
+    const at = map.latLngToContainerPoint([point.lat, point.lon]);
+    const labeled = index === queueStops.length - 1;
+    const size = queueDiameter(queued, scale) * (labeled ? 0.78 : 0.46) + offset;
+    return { x: at.x, y: at.y, w: size + 8, h: size + (labeled ? 24 : 8) };
+  });
+}
+
+function paintLabels(current, levels) {
+  labelLayer.clearLayers();
+  const measures = ["traffic", "air", "noise"].filter((id) => state.layers[id]);
+  const items = [];
+  if (measures.length && centre) {
+    for (const id of shownPlaces()) {
+      const rows = measures.map((measure) => areaRow(measure, levels.before[id] ?? 0, levels.after[id] ?? 0));
+      const name = t(`place.${id}`);
+      const label = `${name}: ${rows.map((row) => row.text).join(", ")}`;
+      items.push({
+        anchor: placeAnchors[id],
+        w: Math.max(name.length, ...rows.map((row) => row.text.length)) * 6.6 + 20,
+        h: 22 + rows.length * 17,
+        html: `<div class="area-label" role="img" aria-label="${label}"><span class="area-name">${name}</span>${rows.map((row) => row.html).join("")}</div>`,
+      });
+    }
+  }
+  if (state.layers.air) {
+    const scale = Math.max(30, ...(airData?.stations || []).map((station) => station.no2));
+    for (const station of airData?.stations || []) {
+      const size = measureDiameter(station.no2, scale, 34, 22);
+      const label = `${station.name}: ${stationSummary(station, state.lang)}`;
+      items.push({
+        anchor: station,
+        w: Math.max(station.name.length * 6.6 + 16, size + 8),
+        h: size + 26,
+        html: `<div class="station-label" role="img" aria-label="${label}"><span class="area-name">${station.name}</span><span class="measure-bubble ${airBand(station.no2)}" style="--measure-size:${size}px"><strong>${station.no2}</strong><small>NO2</small></span></div>`,
+      });
+    }
+  }
+  if (!items.length) return;
+  const boxes = items.map((item) => {
+    const at = map.latLngToContainerPoint([item.anchor.lat, item.anchor.lon]);
+    return { x: at.x, y: at.y, w: item.w, h: item.h, item, startX: at.x, startY: at.y };
+  });
+  spreadBoxes(boxes, queueBoxes(current));
+  for (const box of boxes) {
+    const at = map.containerPointToLatLng([box.x, box.y]);
+    if (Math.hypot(box.x - box.startX, box.y - box.startY) > 14) {
+      const anchor = [box.item.anchor.lat, box.item.anchor.lon];
+      L.polyline([anchor, at], { pane: "leaders", color: "#ffffff", weight: 1, opacity: 0.75, interactive: false }).addTo(labelLayer);
+      L.circleMarker(anchor, {
+        pane: "leaders",
+        radius: 3,
+        color: "#ffffff",
+        weight: 1,
+        fillColor: "#1e1e1e",
+        fillOpacity: 1,
+        interactive: false,
+      }).addTo(labelLayer);
+    }
+    labelMarker({ lat: at.lat, lon: at.lng }, box.item.html).addTo(labelLayer);
+  }
+}
+
+function busiest(levels) {
+  return Object.entries(levels).sort((a, b) => b[1] - a[1])[0]?.[0];
+}
+
+function trafficShift(levels) {
+  const changes = Object.keys(levels.before)
+    .map((id) => ({ id, pct: percentChange(levels.before[id], levels.after[id]) }))
+    .sort((a, b) => a.pct - b.pct);
+  const less = changes[0];
+  const more = changes[changes.length - 1];
+  if (!less || less.pct > -4) return t("traffic.same");
+  const place = (id) => t(`place.${id}`);
+  return more.pct >= 4
+    ? t("traffic.shift", { less: place(less.id), lessPct: signed(less.pct), more: place(more.id), morePct: signed(more.pct) })
+    : t("traffic.less", { less: place(less.id), lessPct: signed(less.pct) });
+}
+
+function noiseLine(levels) {
+  const place = (id) => t(`place.${id}`);
+  if (state.view === "before") return t("impact.noiseNow", { place: place(busiest(levels.before)) });
+  if (!state.lines.length) return t("impact.noiseSame");
+  const changes = Object.keys(levels.before)
+    .map((id) => ({ id, db: noiseDb(levels.before[id], levels.after[id]) }))
+    .sort((a, b) => a.db - b.db);
+  const quiet = changes[0];
+  const loud = changes[changes.length - 1];
+  if (quiet.db > -0.5) return t("impact.noiseSame");
+  return loud.db >= 0.5
+    ? t("impact.noiseShift", { quiet: place(quiet.id), quietDb: signed(quiet.db, 1), loud: place(loud.id), loudDb: signed(loud.db, 1) })
+    : t("impact.noiseQuiet", { quiet: place(quiet.id), quietDb: signed(quiet.db, 1) });
+}
+
+function paintImpact(current, levels) {
   const { before, after } = current;
   const rossaOn = state.lines.includes("rossa");
-  const beforeCars = carAccount(before, "before");
-  const afterCars = carAccount(after, "after");
+  const compare = state.view === "compare";
+  const record = state.view === "before" ? before : after;
   const set = (id, text) => {
     document.getElementById(id).textContent = text;
   };
-  set("impact-cars-source", t("impact.carsSource"));
-  const trips = (record, fieraKey, agrariaKey) => t("impact.trips", {
-    fiera: Math.round(record[fieraKey]),
-    agraria: Math.round(record[agrariaKey]),
-  });
-  if (state.view !== "compare") {
-    const record = state.view === "after" ? after : before;
-    const trams = state.view === "after" && rossaOn;
-    set("impact-cars-value", carLine(state.view === "after" ? afterCars : beforeCars));
-    set("impact-cars-detail", trips(record, "carFieraMin", "carPilastroMin"));
-    set("impact-bikes-value", t("impact.bikesNow", { n: Math.round(record.bikeFieraMin) }));
-    set("impact-bikes-detail", "");
-    set("impact-transit-value", t(trams ? "impact.tram" : "impact.bus"));
-    set("impact-transit-detail", trips(record, "transitFieraMin", "transitPilastroMin"));
-    set("impact-air-value", state.view === "after" && state.lines.length ? t("impact.airShift") : t("impact.airNow"));
-    return;
-  }
-  set("impact-cars-value", carLine(null, [beforeCars, afterCars]));
-  const delta = (fieraKey, agrariaKey) => t("impact.tripsDelta", {
-    fieraBefore: Math.round(before[fieraKey]),
-    fieraAfter: Math.round(after[fieraKey]),
-    agrariaBefore: Math.round(before[agrariaKey]),
-    agrariaAfter: Math.round(after[agrariaKey]),
-  });
-  set("impact-cars-detail", delta("carFieraMin", "carPilastroMin"));
+  const trips = (fieraKey, agrariaKey) => (compare
+    ? t("impact.tripsDelta", {
+      fieraBefore: Math.round(before[fieraKey]),
+      fieraAfter: Math.round(after[fieraKey]),
+      agrariaBefore: Math.round(before[agrariaKey]),
+      agrariaAfter: Math.round(after[agrariaKey]),
+    })
+    : t("impact.trips", { fiera: Math.round(record[fieraKey]), agraria: Math.round(record[agrariaKey]) }));
+
+  set("impact-traffic-value", trips("carFieraMin", "carPilastroMin"));
+  set("impact-traffic-detail", state.view === "before" || !state.lines.length
+    ? t("traffic.busiest", { place: t(`place.${busiest(levels[state.view === "before" ? "before" : "after"])}`) })
+    : trafficShift(levels));
+
+  const [queueValue, queueDetail] = congestionLines(carAccount(before, "before"), carAccount(after, "after"));
+  set("impact-congestion-value", queueValue);
+  set("impact-congestion-detail", queueDetail);
+
+  const serving = state.view !== "before" && state.lines.length > 0;
+  set("impact-air-value", serving ? t("impact.airShift") : compare ? t("impact.airSame") : t("impact.airNow"));
+  set("impact-air-detail", t("air.measured", {
+    readings: (airData?.stations || []).map((station) => `${station.name} ${station.no2}`).join(" · "),
+  }));
+
+  set("impact-noise-value", noiseLine(levels));
+
+  const tram = state.view === "after" && rossaOn;
+  set("impact-transit-value", `${t("impact.transit")}: ${compare
+    ? t(rossaOn ? "impact.busToTram" : "impact.transitSame")
+    : t(tram ? "impact.tram" : "impact.bus")}`);
+  set("impact-transit-detail", compare && !rossaOn ? "" : trips("transitFieraMin", "transitPilastroMin"));
   const bikeBefore = Math.round(before.bikeFieraMin);
   const bikeAfter = Math.round(after.bikeFieraMin);
-  set("impact-bikes-value", bikeBefore === bikeAfter
-    ? t("impact.bikesSame", { n: bikeAfter })
-    : t("impact.bikesChange", { before: bikeBefore, after: bikeAfter }));
-  set("impact-bikes-detail", "");
-  set("impact-transit-value", t(rossaOn ? "impact.busToTram" : "impact.transitSame"));
-  set("impact-transit-detail", rossaOn ? delta("transitFieraMin", "transitPilastroMin") : "");
-  set("impact-air-value", state.lines.length ? t("impact.airShift") : t("impact.airSame"));
+  const bikes = !compare
+    ? t("impact.bikesNow", { n: Math.round(record.bikeFieraMin) })
+    : bikeBefore === bikeAfter
+      ? t("impact.bikesSame", { n: bikeAfter })
+      : t("impact.bikesChange", { before: bikeBefore, after: bikeAfter });
+  set("impact-bikes-value", `${t("impact.bikes")}: ${bikes}`);
 }
 
-function paintNoise(beforeLevel, afterLevel, order) {
-  const value = document.getElementById("impact-noise-value");
-  const name = (id) => t(`place.${id}`);
-  if (state.view === "before" || !state.lines.length) {
-    value.textContent = state.view === "compare"
-      ? t("impact.noiseSame")
-      : t("impact.noiseNow", { place: name(order[0].id) });
-    return;
+function paintSwitches() {
+  for (const button of document.querySelectorAll(".map-switch")) {
+    const layer = button.dataset.layer;
+    button.setAttribute("aria-pressed", String(Boolean(state.layers[layer])));
+    button.setAttribute("aria-label", t(`layer.${layer}`));
   }
-  const changes = Object.keys(beforeLevel).map((id) => ({
-    id,
-    db: 10 * Math.log10(Math.max(afterLevel[id], 0.05) / Math.max(beforeLevel[id], 0.05)),
-  }));
-  changes.sort((a, b) => a.db - b.db);
-  const quiet = changes[0];
-  const loud = changes[changes.length - 1];
-  const db = (number) => number.toLocaleString(locale(state.lang), { maximumFractionDigits: 1 });
-  if (quiet.db > -0.5) {
-    value.textContent = t("impact.noiseSame");
-    return;
-  }
-  value.textContent = loud.db >= 0.5
-    ? t("impact.noiseShift", { quiet: name(quiet.id), quietDb: db(quiet.db), loud: name(loud.id), loudDb: db(loud.db) })
-    : t("impact.noiseQuiet", { quiet: name(quiet.id), quietDb: db(quiet.db) });
+  document.getElementById("sensor-key").hidden = !state.layers.air;
 }
 
-function paintCongestion(current) {
-  const base = {
-    cars: hourCars(catalog, state.hour),
-    peakCars: centre?.peakCars,
-    beforeCarFlow: current.before.carFlow,
-    activeLines: state.lines,
-  };
-  const beforePlaces = placeCongestion(centre, linesPlan, { ...base, scenario: "before", carFlow: current.before.carFlow });
-  const afterPlaces = placeCongestion(centre, linesPlan, { ...base, scenario: "after", carFlow: current.after.carFlow });
-  const levelOf = (places) => Object.fromEntries(places.map((place) => [place.id, place.level]));
-  const order = state.view === "before" ? beforePlaces : afterPlaces;
-  paintNoise(levelOf(beforePlaces), levelOf(afterPlaces), order);
+function paintMapLayers() {
+  const current = shown();
+  paintHeat();
+  paintQueues(current);
+  paintLabels(current, placeLevels(current));
+  paintSwitches();
 }
 
 function paintPanel(options = {}) {
@@ -510,8 +642,6 @@ function paintPanel(options = {}) {
   document.body.classList.add(`view-${state.view}`);
   document.body.classList.toggle("scenario-before", state.scenario === "before");
   document.body.classList.toggle("scenario-after", state.scenario === "after");
-  const titles = { before: "impact.titleBefore", after: "impact.titleAfter", compare: "impact.titleCompare" };
-  document.querySelector(".kicker").textContent = t(titles[state.view]);
   document.getElementById("map-caption").textContent = t(`caption.${state.view}`);
   document.getElementById("when").textContent = `Bologna · ${hourLabel(state.hour)}`;
   const priority = document.getElementById("priority-note");
@@ -521,6 +651,7 @@ function paintPanel(options = {}) {
       : t("priority.note", { green: Math.round(carGreenSec(state.params.tramHeadwayMin)) });
   }
   document.getElementById("assumptions").textContent = assumptionText();
+  document.getElementById("model-use").textContent = t(`modelUse.${state.model}`);
   const snap = document.getElementById("snap");
   if (metrics.snapped) {
     snap.textContent = t("snap.nearest", {
@@ -532,9 +663,11 @@ function paintPanel(options = {}) {
   } else {
     snap.textContent = "";
   }
-  paintImpact(current);
+  const levels = placeLevels(current);
+  paintImpact(current, levels);
   paintQueues(current);
-  paintCongestion(current);
+  paintLabels(current, levels);
+  paintSwitches();
   const rows = {
     carFieraMin: [before.carFieraMin, after.carFieraMin],
     carPilastroMin: [before.carPilastroMin, after.carPilastroMin],
@@ -636,7 +769,6 @@ dayButton.addEventListener("click", () => {
     return;
   }
   const hours = (catalog?.hours || [{ hour: state.hour }]).map((slot) => slot.hour);
-  if (!state.air) state.heatmap = true;
   dayButton.textContent = t("control.stopDay");
   dayButton.setAttribute("aria-pressed", "true");
   let index = 0;
@@ -682,80 +814,15 @@ document.getElementById("show-before").addEventListener("click", () => setView("
 document.getElementById("show-after").addEventListener("click", () => setView("after"));
 document.getElementById("show-compare").addEventListener("click", () => setView("compare"));
 
-const heatToggle = document.getElementById("heat-toggle");
-if (!centre) heatToggle.hidden = true;
-heatToggle.addEventListener("click", () => {
-  state.heatmap = !state.heatmap;
-  if (state.heatmap) state.air = false;
-  paintHeat();
-  paintAir();
-});
-
-document.getElementById("queue-toggle").addEventListener("click", () => {
-  state.queues = !state.queues;
-  paintQueues(shown());
-});
-
-const airCanvas = document.getElementById("air");
-const air = centre && airData ? createAir(map, airCanvas, centre, linesPlan) : null;
-if (!air) document.getElementById("air-toggle").hidden = true;
-if (air) {
-  const airResize = () => {
-    air.resize();
-    paintAir();
-  };
-  airResize();
-  window.addEventListener("resize", airResize);
-}
-
-function paintAir() {
-  if (!air) return;
-  const current = shown();
-  air.paint({
-    air: state.air,
-    scenario: state.scenario,
-    cars: hourCars(catalog, state.hour),
-    peakCars: centre.peakCars,
-    carFlow: current[state.scenario].carFlow,
-    beforeCarFlow: current.before.carFlow,
-    activeLines: state.lines,
-    stations: airData.stations,
+for (const button of document.querySelectorAll(".map-switch")) {
+  const layer = button.dataset.layer;
+  if ((layer === "traffic" || layer === "noise") && !centre) button.hidden = true;
+  if (layer === "air" && !airData?.stations?.length) button.hidden = true;
+  button.addEventListener("click", () => {
+    state.layers[layer] = !state.layers[layer];
+    paintMapLayers();
   });
-  document.getElementById("vehicles").classList.toggle("dim", state.heatmap || state.air);
-  document.getElementById("air-toggle").setAttribute("aria-pressed", String(state.air));
-  document.getElementById("air-key").hidden = !state.air;
-  const serving = state.scenario === "after" && state.lines.length > 0;
-  const readings = airData.stations.map((station) => `${station.name} ${station.no2}`).join(" · ");
-  document.getElementById("air-note").textContent = state.air
-    ? serving
-      ? t("air.serving", { readings })
-      : t("air.idle", { readings })
-    : "";
 }
-
-document.getElementById("air-toggle").addEventListener("click", () => {
-  state.air = !state.air;
-  if (state.air) state.heatmap = false;
-  paintHeat();
-  paintAir();
-});
-
-const sensorsToggle = document.getElementById("sensors-toggle");
-if (!sensorLayer) sensorsToggle.hidden = true;
-function paintSensors() {
-  if (!sensorLayer) return;
-  sensorsToggle.setAttribute("aria-pressed", String(state.sensors));
-  document.getElementById("sensor-key").hidden = !state.sensors;
-  document.getElementById("sensor-note").textContent = state.sensors
-    ? t("sensor.note", { readings: airData.stations.map((station) => `${station.name} NO2 ${station.no2}`).join(" · ") })
-    : "";
-  if (state.sensors) sensorLayer.addTo(map);
-  else map.removeLayer(sensorLayer);
-}
-sensorsToggle.addEventListener("click", () => {
-  state.sensors = !state.sensors;
-  paintSensors();
-});
 
 const shift = document.getElementById("shift");
 const headway = document.getElementById("headway");
@@ -879,7 +946,6 @@ for (const button of document.querySelectorAll(".lang button")) {
     document.getElementById("predict-note").textContent = "";
     paintPanel({ keep: true });
     paintRoutes();
-    paintSensors();
   });
 }
 for (const button of document.querySelectorAll(".scale button")) {
@@ -930,18 +996,10 @@ function drawVehicle(vehicle, kind) {
 }
 
 let last = performance.now();
-let styleTimer = 0;
 function frame(now) {
   const wall = Math.min(0.05, (now - last) / 1000);
   last = now;
-  if (state.playing) {
-    traffic.step(wall * state.timeScale, state.params, shown());
-    styleTimer += wall;
-    if (styleTimer > 0.4) {
-      styleTimer = 0;
-      paintRoutes();
-    }
-  }
+  if (state.playing) traffic.step(wall * state.timeScale, state.params, shown());
   ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
   const vehicles = state.scenario === "after" ? traffic.vehicles("after") : [];
   const zoom = map.getZoom();
@@ -965,6 +1023,10 @@ paintPanel();
 paintRoutes();
 refreshLive();
 map.on("move zoom resize", () => paintRoutes());
+map.on("zoomend resize", () => {
+  const current = shown();
+  paintLabels(current, placeLevels(current));
+});
 requestAnimationFrame(frame);
 }
 

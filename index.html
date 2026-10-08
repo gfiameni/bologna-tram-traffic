@@ -14,7 +14,6 @@
   <body>
     <div id="map"></div>
     <canvas id="heat"></canvas>
-    <canvas id="air"></canvas>
     <canvas id="vehicles"></canvas>
     <aside id="panel">
       <div class="topline">
@@ -37,38 +36,45 @@
         <label class="line-gialla"><input type="checkbox" value="gialla"> Gialla</label>
         <label class="line-blu"><input type="checkbox" value="blu"> Blu</label>
       </div>
-      <button type="button" id="heat-toggle" aria-pressed="true" data-i18n="toggle.heat">City traffic</button>
-      <button type="button" id="queue-toggle" aria-pressed="true" data-i18n="toggle.queues">Car queues</button>
-      <button type="button" id="air-toggle" aria-pressed="false" data-i18n="toggle.air">Air proxy</button>
-      <button type="button" id="sensors-toggle" aria-pressed="false" data-i18n="toggle.sensors">Pollution sensors</button>
-      <p id="air-note" aria-live="polite"></p>
-      <p id="sensor-note" aria-live="polite"></p>
-      <p class="kicker">Before</p>
       <p id="map-caption"></p>
       <section id="impact" aria-live="polite">
-        <article data-factor="cars">
-          <h2 data-i18n="impact.cars">Cars</h2>
-          <strong id="impact-cars-value"></strong>
-          <p id="impact-cars-detail"></p>
-          <p id="impact-cars-source" data-i18n="impact.carsSource"></p>
+        <article data-factor="traffic">
+          <header>
+            <h2 data-i18n="impact.traffic">Traffic</h2>
+            <button type="button" class="map-switch" data-layer="traffic" aria-pressed="true"><i aria-hidden="true"></i><span data-i18n="layer.map">Map</span></button>
+          </header>
+          <strong id="impact-traffic-value"></strong>
+          <p id="impact-traffic-detail"></p>
         </article>
-        <article data-factor="bikes">
-          <h2 data-i18n="impact.bikes">Bicycles</h2>
-          <strong id="impact-bikes-value"></strong>
-          <p id="impact-bikes-detail"></p>
-        </article>
-        <article data-factor="transit">
-          <h2 data-i18n="impact.transit">Transit</h2>
-          <strong id="impact-transit-value"></strong>
-          <p id="impact-transit-detail"></p>
+        <article data-factor="congestion">
+          <header>
+            <h2 data-i18n="impact.congestion">Congestion</h2>
+            <button type="button" class="map-switch" data-layer="queues" aria-pressed="true"><i aria-hidden="true"></i><span data-i18n="layer.map">Map</span></button>
+          </header>
+          <strong id="impact-congestion-value"></strong>
+          <p id="impact-congestion-detail"></p>
+          <p class="source" data-i18n="impact.carsSource"></p>
         </article>
         <article data-factor="air">
-          <h2 data-i18n="impact.air">Exhaust</h2>
+          <header>
+            <h2 data-i18n="impact.air">Air quality</h2>
+            <button type="button" class="map-switch" data-layer="air" aria-pressed="false"><i aria-hidden="true"></i><span data-i18n="layer.map">Map</span></button>
+          </header>
           <strong id="impact-air-value"></strong>
+          <p id="impact-air-detail"></p>
         </article>
         <article data-factor="noise">
-          <h2 data-i18n="impact.noise">Traffic noise</h2>
+          <header>
+            <h2 data-i18n="impact.noise">Traffic noise</h2>
+            <button type="button" class="map-switch" data-layer="noise" aria-pressed="false"><i aria-hidden="true"></i><span data-i18n="layer.map">Map</span></button>
+          </header>
           <strong id="impact-noise-value"></strong>
+        </article>
+        <article data-factor="moving">
+          <header><h2 data-i18n="impact.moving">Getting around</h2></header>
+          <strong id="impact-transit-value"></strong>
+          <p id="impact-transit-detail"></p>
+          <p id="impact-bikes-value"></p>
         </article>
       </section>
       <details id="numbers" class="compare-only">
@@ -110,6 +116,7 @@
           <option value="surrogate" data-i18n="model.surrogate">Neural surrogate</option>
         </select>
       </label>
+      <p id="model-use"></p>
       <p id="snap"></p>
       <label class="slider after-only">
         <span><span data-i18n="control.shift">Car trips that switch to the tram</span> <strong id="shift-value">25%</strong></span>
@@ -142,8 +149,7 @@
       <span class="after-only"><i class="swatch bus"></i><span data-i18n="legend.bus">Bus</span></span>
       <span class="after-only"><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
       <span class="scale-key"><b data-i18n="legend.heat">car traffic</b><span data-i18n="legend.fast">clear</span><i></i><span data-i18n="legend.slow">congested</span></span>
-      <span id="air-key" hidden><i class="air-down"></i><span data-i18n="legend.airDown">less exhaust</span> <i class="air-up"></i><span data-i18n="legend.airUp">more exhaust</span></span>
-      <span id="sensor-key" hidden><i class="sensor-swatch"></i><span data-i18n="legend.sensor">air station</span></span>
+      <span id="sensor-key" hidden><i class="sensor-swatch"></i><span data-i18n="legend.sensor">measured NO2</span></span>
     </div>
     <script type="module" src="/src/main.js"></script>
   </body>

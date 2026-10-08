@@ -33,12 +33,6 @@ const CAR_LENGTH_M = {
 };
 const TRAM_SIGNALS = { trunk: 21, bypass: 0, city: 6, fiera: 4, pilastro: 11 };
 
-function websterDelay(greenSec) {
-  const green = greenSec / SIGNAL_CYCLE_SEC;
-  const volume = Math.min(0.92, green * 0.85);
-  return 0.5 * SIGNAL_CYCLE_SEC * (1 - green) ** 2 / Math.max(0.08, 1 - volume);
-}
-
 /** Green left for cars when every tram gets the junction. */
 export function carGreenSec(headwayMin) {
   const passagesPerHour = 2 * (60 / Math.max(headwayMin, 0.5));
@@ -47,27 +41,27 @@ export function carGreenSec(headwayMin) {
   return SIGNAL_GREEN_SEC * (1 - lost);
 }
 
-function priorityExtraSec(headwayMin) {
-  return Math.max(0, websterDelay(carGreenSec(headwayMin)) - websterDelay(SIGNAL_GREEN_SEC));
-}
-
 /** Longer car trips where the tram runs. Bypass signals stay on the fixed cycle. */
 export function applyTramPriority(result, headwayMin) {
   if (!result?.after || !(headwayMin > 0)) return result;
-  const extra = priorityExtraSec(headwayMin);
+  const greenShare = Math.max(0.2, carGreenSec(headwayMin) / SIGNAL_GREEN_SEC);
   const after = {
     ...result.after,
     speeds: { ...result.after.speeds },
     carGreenSec: carGreenSec(headwayMin),
+    vehiclesPerHour: 60 / headwayMin,
   };
   let fieraSec = 0;
   let pilastroSec = 0;
   for (const [name, signals] of Object.entries(TRAM_SIGNALS)) {
     if (!signals) continue;
-    const added = signals * extra;
     const speed = after.speeds?.[name];
     const length = CAR_LENGTH_M[name];
-    if (speed && length) after.speeds[name] = length / (length / speed + added);
+    if (!(speed && length)) continue;
+    const baseSec = length / speed;
+    const slowedSec = baseSec / greenShare;
+    after.speeds[name] = speed * greenShare;
+    const added = slowedSec - baseSec;
     if (name === "trunk" || name === "city" || name === "fiera") fieraSec += added;
     if (name === "trunk" || name === "city" || name === "pilastro") pilastroSec += added;
   }

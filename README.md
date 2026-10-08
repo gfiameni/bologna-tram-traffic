@@ -4,11 +4,18 @@ A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigal
 
 The map has three views. **Before** is the city with no tram: the glow is car traffic, and no tram line is drawn. **After** draws each line you tick and shows the traffic with those trams. **Compare** keeps the lines and colours the glow by the change, green where fewer cars remain and dark red where more cars gather. An open line clears its own street. Cars that stay move onto the avenues and the bypass.
 
-The queue is the cars still on Via Emilia between Emilio Lepido and Porta San Felice. Bubbles along that stretch grow with the queue, and the traffic glow there rises with them. Compare shows Before beside After: the After bubbles are green when the queue falls and dark red when it grows. Switching to the tram lowers car demand, but the queue can still grow when the lane and signal time available to cars let fewer of them reach Porta San Felice. Queue = demand − cars that arrive there.
+The panel has one card for each impact: **Traffic**, **Congestion**, **Air quality**, and **Traffic noise**. A last card, **Getting around**, gives the transit and bicycle times. Each impact card has a **Map** switch that draws that impact on the map:
+
+- **Traffic** paints the car-traffic glow and adds a *Cars* row to each area label. The areas are the centre, the avenues, the bypass, and each open tram line.
+- **Congestion** draws the cars still queued on Via Emilia between Emilio Lepido and Porta San Felice. Queue = demand − cars that arrive there. Switching to the tram lowers car demand, but the queue can still grow when the lane and signal time left to cars let fewer of them reach Porta San Felice.
+- **Air quality** draws the measured NO2 at Porta San Felice, Giardini Margherita, and Via Chiarini, and adds an *Exhaust* row to each area label. Exhaust is a traffic proxy. The measured NO2 does not change.
+- **Traffic noise** adds a *Noise* row, estimated from car volume.
+
+Before and After describe each area in words, from light to very heavy traffic and from quiet to very loud. Compare gives the change: a percentage for cars and exhaust, dB for noise. Green means it falls, red means it grows. Traffic and Congestion start on, and Air quality and Traffic noise start off.
 
 Travel times are modelled only from Emilio Lepido to the Fiera and to Agraria. Verde, Gialla, and Blu change where the cars go, the exhaust proxy, and the traffic-noise estimate. They do not have their own trip times.
 
-Pick a time of day and a model. On After and Compare, move the sliders for how many drivers switch and how often the tram runs. Every tram gets the junction, so a shorter gap leaves cars less of the 40 seconds of green and the car trips get longer. **City traffic** paints that congestion across the centre, the four corridors, and the bypass. **Air proxy** shows where the traffic model moves kerb exhaust, and leaves the measured NO2 at the three Bologna stations unchanged. **Pollution sensors** marks Porta San Felice, Giardini Margherita, and Via Chiarini. The panel also gives a traffic-noise estimate from the change in car volume. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
+Pick a time of day and a model. On After and Compare, move the sliders for how many drivers switch and how often the tram runs. Every tram gets the junction, so a shorter gap leaves cars less of the 40 seconds of green and the car trips get longer. **Predict best setup** searches that model’s saved grid for the shift and tram frequency that carry the most people through San Felice, keep the waiting queue short, and limit the extra car time to the Fiera. **Export report** downloads that result as an HTML file: the chosen setup, the before-and-after table, and the other setups that were compared.
 
 ![Before, with no tram line, then After with Rossa, then Compare](docs/preview.gif)
 
@@ -36,17 +43,11 @@ With the volume-delay model, moving the switch slider changes how many cars the 
 
 ![Centre heat cooling as modeled car flow falls from 1,155 to 578 cars an hour](docs/heat-flow.gif)
 
-### Air proxy
+### Air quality and noise
 
-**Air proxy** keeps the measured NO2 at Porta San Felice, Giardini Margherita, and Via Chiarini. Street colour follows the traffic model: purple before the tram, then teal where an open line takes cars off the street and purple on the avenues that take those cars.
+**Air quality** shows the measured NO2 at the three ARPAE stations as numbers on the map. The *Exhaust* row on each area follows the traffic model. It falls where an open line takes cars off the street and rises on the avenues and the bypass that take those cars. In the morning cell-transmission case with Rossa open, exhaust on the Rossa streets falls by about 69% and rises by about 34% on the bypass.
 
-![Air proxy before the tram, then with the lines open: less exhaust on the corridors, more on the avenues](docs/air.gif)
-
-### Pollution sensors
-
-**Pollution sensors** places a marker on each measured station. Porta San Felice, Giardini Margherita, and Via Chiarini keep their measured NO2. The markers stay on those sites when the street-colour proxy changes.
-
-![Pollution sensors at Porta San Felice, Giardini Margherita, and Via Chiarini](docs/sensors.gif)
+**Traffic noise** follows the same car volumes, as 10·log10(after/before). Halving the cars on a street is about −3 dB. On the Rossa streets that same case is about −5 dB. The tram's own sound is not in this estimate.
 
 ## Disclaimer
 
@@ -59,7 +60,7 @@ A few inputs are assumptions, because the published data does not contain them:
 - Car demand is the weekday loop count on Viale Ercolani (south) and Viale Pietramellara (north-east). Those loops are not on Via Emilia. The model sends those cars in at Emilio Lepido. Cars that get through arrive at Porta San Felice. The queue is the cars still short of it.
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00. The “with tram” scenario takes those buses off the alignment.
 - The car-traffic glow uses OpenStreetMap streets inside the viali, samples along the four planned lines, and the bypass around the centre. The Comune counts cars on a few boulevards, not on every street. The selected model’s car flow scales the hourly boulevard demand across those streets. With the tram, the glow leaves an open line and sits on the avenues and the bypass.
-- The air proxy is not a pollution plume. The three ARPAE stations in Bologna keep their measured NO2. Street colour follows the traffic model: exhaust falls where cars leave an open tram line and rises on the avenues that take those cars. **Pollution sensors** draws those three stations on the map. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service, so there is no measured before and after.
+- The exhaust row is not a pollution plume. The three ARPAE stations in Bologna keep their measured NO2. Exhaust follows the traffic model: it falls where cars leave an open tram line and rises on the avenues that take those cars. **Air quality** draws those three stations on the map. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service, so there is no measured before and after.
 - Traffic noise is an estimate from car volume, ten times the log of the change. It is not a measurement, and it leaves out the sound of the tram itself.
 - Verde, Gialla, and Blu are the other lines named on [trambologna.it](https://www.trambologna.it/). Each checkbox opens that corridor on the After and Compare views. Rossa uses the saved traffic model. Each extra open line takes a further share of cars off its street and cools the glow there. That share is a scenario, not a second city-wide assignment, and those three lines do not change the Emilio Lepido trip times.
 - Car occupancy (1.3 people) and a full bus (45 people, 90 seats of capacity) are modelling choices.
@@ -173,11 +174,22 @@ The neural model is fit to this corridor’s cell-transmission runs. It is not a
 
 The map starts on **cell transmission**. The other three answer a different question about the same corridor, the same hours, and the same before/after scenario. **Predict best setup** searches only the model that is selected, so the recommended switch and tram frequency can change when the model changes. Tram frequency changes how many people can board. It also changes how long cars wait: every tram gets the junction, so a shorter gap leaves cars less of the 40 seconds of green and lengthens the car trips. The tram’s onboard time does not include that wait. Verde, Gialla, and Blu are a further share of cars taken off the street on top of whichever model is selected.
 
-Same morning, Rossa on, a quarter of drivers switching, tram every 4.5 minutes. Cell transmission gets 246 cars an hour through to Porta San Felice, and Emilio Lepido to the Fiera takes 68 minutes. Volume-delay gets all 866 through and that trip takes 44 minutes. Car following gets 864 through and the trip takes 30 minutes. The neural surrogate gets 288 through and the trip takes 64 minutes.
+Same morning, Rossa on, a quarter of drivers switching, tram every 4.5 minutes. Cell transmission gets 246 cars an hour through to Porta San Felice, and Emilio Lepido to the Fiera takes 87 minutes. Volume-delay gets all 866 through and that trip takes 49 minutes. Car following gets 864 through and the trip takes 35 minutes. The neural surrogate gets 288 through and the trip takes 79 minutes. A shorter gap leaves cars less of the green, so those trips get longer.
 
 ![Cell transmission, then volume-delay, then car following, then the neural surrogate. The cars that arrive at Porta San Felice and the trip from Emilio Lepido to the Fiera change with the model.](docs/models.gif)
 
 ![The four models share one set of inputs and one set of outputs. Car demand is the weekday loop count on Viale Ercolani (south) and Viale Pietramellara (north-east). The model sends those cars in at Emilio Lepido. Cars that get through arrive at Porta San Felice, and the queue is the cars still short of it. Cell transmission is the default. Tram priority is applied after the model. Travel times run from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria.](docs/models.png)
+
+### When to use each model
+
+| Model | Use it to ask | Do not use it to ask |
+| --- | --- | --- |
+| Cell transmission | Can the signals clear the peak? How long is the queue? | Who is in the queue: buses, bicycles, or cars |
+| Volume-delay | How much slower is the trip when a lane goes to the tracks? | Whether the street can carry the peak at all |
+| Car following | What do buses at stops and bicycles in the lane do to traffic? | A quick sweep of every hour and slider value |
+| Neural surrogate | How close does a fast copy stay to cell transmission? | A separate forecast, or a street outside this corridor |
+
+Start with cell transmission for the morning and evening peaks. Volume-delay is the quickest to read, but it lets every car through. Car following is the one to use for vehicle mix and stop-and-go. The surrogate is a check, not a fifth opinion.
 
 Car demand is the weekday loop count on Viale Ercolani, southbound, and Viale Pietramellara, north-east. In the morning peak that median is about 1,155 cars an hour. The loops are not on Via Emilia. The model sends those cars in at Emilio Lepido, heading east. Cars that get through arrive at Porta San Felice. The queue is the cars still short of Porta San Felice.
 
