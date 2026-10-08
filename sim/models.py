@@ -1,6 +1,7 @@
 """Run one of the corridor models."""
 
 from sim import bpr, ctm, idm, surrogate
+from sim.design import merge
 
 MODELS = {
     "bpr": "Volume-delay with signals",
@@ -10,13 +11,14 @@ MODELS = {
 }
 
 
-def run(name, corridor, scenario, shift, headway, use_warp=False, hour=8):
+def run(name, corridor, scenario, shift, headway, use_warp=False, hour=8, design=None):
+    design = merge(design)
     if name == "bpr":
-        return bpr.run(corridor, scenario, shift, headway, hour=hour)
+        return bpr.run(corridor, scenario, shift, headway, hour=hour, design=design)
     if name == "ctm":
-        return ctm.run(corridor, scenario, shift, headway, use_warp=use_warp, hour=hour)
+        return ctm.run(corridor, scenario, shift, headway, use_warp=use_warp, hour=hour, design=design)
     if name == "idm":
-        return idm.run(corridor, scenario, shift, headway, use_warp=use_warp, hour=hour)
+        return idm.run(corridor, scenario, shift, headway, use_warp=use_warp, hour=hour, design=design)
     if name == "surrogate":
-        return surrogate.run(corridor, scenario, shift, headway, hour=hour)
+        return surrogate.run(corridor, scenario, shift, headway, hour=hour, design=design)
     raise KeyError(name)

@@ -1,55 +1,18 @@
-export function centroid(points) {
-  if (!points?.length) return null;
-  return {
-    lat: points.reduce((sum, point) => sum + point.lat, 0) / points.length,
-    lon: points.reduce((sum, point) => sum + point.lon, 0) / points.length,
+/**
+ * Push overlapping label boxes apart. Boxes are centred on x, y. Fixed boxes do not move.
+ * With an area ({ left, top, right, bottom }), every box also stays inside it.
+ */
+export function spreadBoxes(boxes, fixed = [], { iterations = 60, pad = 6, area = null } = {}) {
+  const keepInside = (box) => {
+    if (!area) return false;
+    const x = Math.max(area.left + box.w / 2, Math.min(area.right - box.w / 2, box.x));
+    const y = Math.max(area.top + box.h / 2, Math.min(area.bottom - box.h / 2, box.y));
+    const moved = x !== box.x || y !== box.y;
+    box.x = x;
+    box.y = y;
+    return moved;
   };
-}
-
-function metres(a, b) {
-  const dx = (a.lon - b.lon) * Math.cos((a.lat * Math.PI) / 180) * 111320;
-  const dy = (a.lat - b.lat) * 110540;
-  return Math.hypot(dx, dy);
-}
-
-/** One anchor per place, on its own streets, as far as possible from anchors already placed. */
-export function pickAnchors(places, obstacles = []) {
-  const centre = centroid(places.find((place) => place.id === "centre")?.samples || []);
-  const placed = [...obstacles];
-  const anchors = {};
-  for (const place of places) {
-    if (!place.samples?.length) continue;
-    if (place.id === "centre" && centre) {
-      anchors.centre = centre;
-      placed.push(centre);
-      continue;
-    }
-    let candidates = place.samples;
-    if (place.line && centre) {
-      const far = Math.max(...place.samples.map((sample) => metres(sample, centre)));
-      const middle = place.samples.filter((sample) => {
-        const distance = metres(sample, centre);
-        return distance > 0.35 * far && distance < 0.8 * far;
-      });
-      if (middle.length) candidates = middle;
-    }
-    let best = candidates[0];
-    let bestGap = -1;
-    for (const sample of candidates) {
-      const gap = placed.length ? Math.min(...placed.map((point) => metres(sample, point))) : 0;
-      if (gap > bestGap) {
-        best = sample;
-        bestGap = gap;
-      }
-    }
-    anchors[place.id] = { lat: best.lat, lon: best.lon };
-    placed.push(best);
-  }
-  return anchors;
-}
-
-/** Push overlapping label boxes apart. Boxes are centred on x, y. Fixed boxes do not move. */
-export function spreadBoxes(boxes, fixed = [], iterations = 60, pad = 6) {
+  for (const box of boxes) keepInside(box);
   for (let round = 0; round < iterations; round++) {
     let moved = false;
     const push = (a, b, share) => {
@@ -73,36 +36,26 @@ export function spreadBoxes(boxes, fixed = [], iterations = 60, pad = 6) {
       for (let j = i + 1; j < boxes.length; j++) push(boxes[i], boxes[j], 0.5);
       for (const block of fixed) push(boxes[i], block, 1);
     }
+    for (const box of boxes) keepInside(box);
     if (!moved) break;
   }
   return boxes;
 }
 
+/**
+ * Where a tooltip opens around a point of radius r: above it, or toward the map when it would
+ * run past the edge of the area ({ left, top, right, bottom }) and under a panel.
+ */
+export function tipSide({ x, y }, area, r = 0, { width = 290, height = 110 } = {}) {
+  if (area && x - width / 2 < area.left) return { direction: "right", offset: [r, 0] };
+  if (area && x + width / 2 > area.right) return { direction: "left", offset: [-r, 0] };
+  if (area && y - r - height < area.top) return { direction: "bottom", offset: [0, r] };
+  return { direction: "top", offset: [0, -r] };
+}
+
 export function measureDiameter(value, scale, min = 30, span = 34) {
   const ratio = Math.max(0, Math.min(1, value / Math.max(scale, 1)));
   return Math.round(min + span * Math.sqrt(ratio));
-}
-
-export function levelBand(level) {
-  if (level > 0.72) return "peak";
-  if (level > 0.52) return "high";
-  if (level > 0.36) return "mid";
-  return "low";
-}
-
-export function percentChange(before, after) {
-  return Math.round((after / Math.max(before, 0.01) - 1) * 100);
-}
-
-/** Car-volume noise change. Not a measurement, and the tram's own sound is not in it. */
-export function noiseDb(before, after) {
-  return 10 * Math.log10(Math.max(after, 0.05) / Math.max(before, 0.05));
-}
-
-export function changeTrend(delta, tolerance) {
-  if (delta < -tolerance) return "less";
-  if (delta > tolerance) return "more";
-  return "same";
 }
 
 export function airBand(no2) {

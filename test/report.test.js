@@ -1,5 +1,8 @@
 import { readFileSync } from "node:fs";
-import { predictionSentence, reportHtml, searchBestSetup } from "../src/report.js";
+import { carChange, reportHtml, setupSentence } from "../src/report.js";
+import { defaultDesign, hourRow, loadCorridor, merge, runPair } from "../src/sim/index.js";
+import { loadRoads, runCity } from "../src/roads.js";
+import { changedStreets, minutesLost, modeImpacts, prepareAreas, searchBestSetup } from "../src/impacts.js";
 
 function check(name, condition) {
   if (!condition) {
@@ -10,26 +13,45 @@ function check(name, condition) {
   }
 }
 
-const catalog = JSON.parse(readFileSync(new URL("../public/catalog.json", import.meta.url)));
-const found = searchBestSetup(catalog, "ctm", 21);
-check("evening search finds a setup", Boolean(found));
-check("evening cell transmission prefers half the drivers and an 8 min tram", found.best.shiftValue === 0.5 && found.best.headwayMin === 8);
-check("chosen row is the top of the ranking", found.ranked[0] === found.best);
+const read = (path) => JSON.parse(readFileSync(new URL(path, import.meta.url)));
+const corridor = loadCorridor(read("../public/corridor.json"));
+const city = prepareAreas(loadRoads(read("../public/roads.json")));
+const lines = read("../public/lines.json");
+const NAMES = {
+  trunk: "Via Emilia Ponente",
+  bypass: "San Felice · Marconi · Pietramellara",
+  city: "Via Matteotti · Via della Liberazione",
+  fiera: "Viale Aldo Moro",
+  pilastro: "Via San Donato",
+};
 
-const sentence = predictionSentence("Cell transmission", "21:00 · evening", found.best);
-check("sentence names the setup", sentence.includes("50% of drivers switch") && sentence.includes("tram every 8 min"));
-
+const pair = runPair("bpr", corridor, { shift: 0.25, headway: 4.5, hour: 8, design: null });
+const options = { hour: 8, lines: ["rossa"], shift: 0.25, extraShift: lines.extraShift, headway: 4.5, priority: true, corridor: pair, buses: 46 };
+const cityBefore = runCity(city, { ...options, scenario: "before" });
+const cityAfter = runCity(city, { ...options, scenario: "after" });
+const current = {
+  pair,
+  impacts: modeImpacts({ pair, corridor, hour: 8, headway: 4.5, rossaOpen: true, city, cityBefore, cityAfter }),
+  changed: changedStreets(city, cityBefore, cityAfter),
+  lost: [minutesLost(pair.before, corridor), minutesLost(pair.after, corridor)],
+};
+const found = await searchBestSetup(corridor, { model: "bpr", shift: 0.25, hour: 8, design: defaultDesign() }, { yieldEvery: 0 });
 const html = reportHtml({
-  modelLabel: "Cell <transmission>",
-  hourLabel: "21:00 · evening",
-  hourSlot: catalog.hours.find((item) => item.hour === 21),
-  best: found.best,
-  ranked: found.ranked,
-  notes: ["Cars from the boulevards."],
-  generatedAt: "25 September 2026 at 10:00",
+  modelLabel: "Volume-delay",
+  hourLabel: "08:00 · morning peak",
+  hourSlot: hourRow(corridor, 8),
+  setup: { shift: 0.25, headway: 4.5, lines: ["rossa"], design: merge(null) },
+  current,
+  found,
+  streetName: (name) => NAMES[name],
+  notes: ["A note."],
+  generatedAt: "8 October 2026",
 });
-check("report includes the prediction", html.includes(sentence.replace("Cell transmission", "Cell &lt;transmission&gt;")) || html.includes("50% of drivers switch"));
-check("report escapes the model name", html.includes("Cell &lt;transmission&gt;") && !html.includes("Cell <transmission>"));
-check("report marks one chosen setup", html.includes(">Chosen<"));
-check("report includes evening demand", html.includes("468") && html.includes("bicycles"));
-check("report states it is a scenario", html.includes("not a forecast from the Comune di Bologna"));
+
+check("the report names the streets", Object.values(NAMES).every((name) => html.includes(name)));
+check("the report has no NaN or undefined", !/NaN|undefined/.test(html));
+check("every trip names both ends", html.includes("Emilio Lepido to the Fiera") && html.includes("Emilio Lepido to Agraria"));
+check("the report ranks ten setups", (html.match(/<tr class="(chosen)?">/g) || []).length === 10);
+check("the chosen setup is marked", html.includes('<tr class="chosen">'));
+check("a longer car trip is worded as longer", carChange({ carFieraMin: 30 }, { carFieraMin: 33 }) === "3 min longer");
+check("the setup sentence names the trip", setupSentence("Volume-delay", "08:00", found.best).includes("from Emilio Lepido to the Fiera"));

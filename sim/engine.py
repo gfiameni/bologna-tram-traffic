@@ -2,6 +2,8 @@
 
 from dataclasses import dataclass
 
+from sim.design import capacity, junction_count
+
 
 @dataclass
 class Result:
@@ -59,6 +61,38 @@ def tram_minutes(corridor, branch):
     length = corridor.tram_length["trunk"] + corridor.tram_length[branch]
     stops = max(0, corridor.tram_stops.get("trunk", 1) + corridor.tram_stops.get(branch, 1) - 2)
     return (length / 7.6 + stops * 26) / 60
+
+
+def tram_trip(corridor, branch, plans):
+    """Timetable minutes, plus the wait at red lights when trams have no priority."""
+    wait = sum(junction_count(corridor.piece(name).signals) * plans[name]["tramWait"] for name in ("trunk", "city", branch))
+    return tram_minutes(corridor, branch) + wait / 60
+
+
+def piece_report(corridor, stats, layouts, plans):
+    report = {}
+    for name, item in stats.items():
+        piece = corridor.piece(name)
+        report[name] = {
+            "lanes": layouts[name]["lanes"],
+            "oneWay": layouts[name]["oneWay"],
+            "forcedOneWay": layouts[name]["forced"],
+            "cycle": plans[name]["cycle"],
+            "green": plans[name]["green"],
+            "carGreen": plans[name]["carGreen"],
+            "wave": plans[name]["wave"],
+            "carIn": item["car_in"],
+            "pceIn": item["pce_in"],
+            "carOut": item["car_out"],
+            "capacity": capacity(layouts[name], plans[name]),
+            "carMin": item["car_min"],
+            "freeMin": piece.length / piece.free / 60,
+            "busMin": item["bus_min"],
+            "bikeMin": item["bike_min"],
+            "junctions": junction_count(piece.signals),
+            "lengthM": piece.length,
+        }
+    return report
 
 
 def pack(result):

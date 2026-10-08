@@ -1,5 +1,4 @@
-import { hourCars, intensity, placeCongestion } from "../src/heatmap.js";
-import { readFileSync } from "node:fs";
+import { HEAT_MEASURES, changeColor, heatColor, heatScale, measureValue } from "../src/heatmap.js";
 
 function check(name, condition) {
   if (!condition) {
@@ -10,63 +9,25 @@ function check(name, condition) {
   }
 }
 
-const centre = JSON.parse(readFileSync(new URL("../public/centre.json", import.meta.url)));
-const lines = JSON.parse(readFileSync(new URL("../public/lines.json", import.meta.url)));
-const catalog = JSON.parse(readFileSync(new URL("../public/catalog.json", import.meta.url)));
-const tram = centre.samples.filter((sample) => sample.tram).sort((a, b) => b.rank - a.rank)[0];
-const ring = centre.samples.filter((sample) => sample.ring).sort((a, b) => b.rank - a.rank)[0];
-const inside = centre.samples.find((sample) => !sample.tram && !sample.ring);
-check("centre file has streets inside the viali", centre.samples.length > 400 && Boolean(tram) && Boolean(ring) && Boolean(inside));
-check("bbox covers Porta San Felice", centre.bbox[1] < 11.33 && centre.bbox[0] < 44.5);
+const road = { length: 500, lanes: [2, 2], kind: "primary" };
+const quiet = { cars: 200, worst: 0.2, exhaust: 100, noise: 200 };
+const busy = { cars: 3200, worst: 1.2, exhaust: 2500, noise: 4000 };
+for (const measure of HEAT_MEASURES) {
+  check(`${measure}: a busy road glows more than a quiet one`, measureValue(measure, road, busy) > measureValue(measure, road, quiet));
+  check(`${measure}: values stay between 0 and 1`, [quiet, busy].every((state) => {
+    const value = measureValue(measure, road, state);
+    return value >= 0 && value <= 1;
+  }));
+}
+check("a road with no state stays dark", measureValue("traffic", road, undefined) === 0);
 
-const morning = hourCars(catalog, 8);
-const evening = hourCars(catalog, 21);
-check("morning is the busy hour", morning > evening);
-
-const viewMorning = {
-  scenario: "before",
-  cars: morning,
-  peakCars: centre.peakCars,
-  carFlow: 453,
-  beforeCarFlow: 453,
-};
-const viewAfter = {
-  scenario: "after",
-  cars: morning,
-  peakCars: centre.peakCars,
-  carFlow: 246,
-  beforeCarFlow: 453,
-};
-const viewNight = {
-  scenario: "before",
-  cars: evening,
-  peakCars: centre.peakCars,
-  carFlow: 481,
-  beforeCarFlow: 481,
-};
-const viewHigherFlow = { ...viewAfter, carFlow: 400 };
-check("tram streets cool when cars leave the centre", intensity(tram, viewAfter) < intensity(tram, viewMorning) * 0.3);
-check("the avenues pick up heat when cars go around", intensity(ring, viewAfter) > intensity(ring, viewMorning));
-check("evening is cooler than the morning peak", intensity(inside, viewNight) < intensity(inside, viewMorning));
-check("heat stays between 0 and 1", intensity(ring, viewAfter) <= 1 && intensity(tram, viewMorning) > 0);
-check("interior heat follows modeled car flow", intensity(inside, viewHigherFlow) > intensity(inside, viewAfter));
-check("avenue heat follows modeled car flow", intensity(ring, viewHigherFlow) > intensity(ring, viewAfter));
-const noLines = { ...viewMorning, scenario: "after", activeLines: [] };
-check(
-  "an empty line selection leaves the heat as it was",
-  intensity(ring, noLines) === intensity(ring, viewMorning)
-    && intensity(inside, noLines) === intensity(inside, viewMorning)
-    && intensity(tram, noLines) === intensity(tram, viewMorning),
-);
-
-const level = (places, id) => places.find((place) => place.id === id).level;
-const beforePlaces = placeCongestion(centre, lines, { ...viewMorning, activeLines: ["rossa"] });
-const afterPlaces = placeCongestion(centre, lines, { ...viewAfter, activeLines: ["rossa", "verde", "gialla", "blu"] });
-check("bars are sorted with the busiest place first", beforePlaces.every((place, index) => index === 0 || place.level <= beforePlaces[index - 1].level));
-check("an open line drops below the avenues", level(afterPlaces, "rossa") < level(afterPlaces, "avenues") && level(afterPlaces, "verde") < level(beforePlaces, "verde"));
-check("the bypass takes more congestion after Rossa", level(afterPlaces, "bypass") > level(beforePlaces, "bypass"));
-const approach = { approach: true, rank: 0.8 };
-check(
-  "a longer queue heats Via Emilia before Porta San Felice",
-  intensity(approach, { ...viewMorning, queueShare: 0.85 }) > intensity(approach, { ...viewMorning, queueShare: 0.2 }),
-);
+const roads = Array.from({ length: 50 }, (_, id) => ({ id, length: 500, lanes: [1, 1], kind: "secondary" }));
+const states = { roads: roads.map((item) => ({ id: item.id, cars: 20 * (item.id + 1), worst: 0.5, exhaust: item.id + 1, noise: 20 * (item.id + 1) })) };
+for (const measure of HEAT_MEASURES) {
+  const scale = heatScale(measure, { roads }, states);
+  check(`${measure}: the city scale has a spread`, scale.hi > scale.lo);
+}
+const traffic = heatScale("traffic", { roads }, states);
+check("the busiest roads reach the top of the scale", measureValue("traffic", roads[49], states.roads[49], traffic) === 1);
+check("the hottest band is dark red", heatColor(0.9).join() === "154,52,18");
+check("more is red and less is green", changeColor(0.3)[0] > changeColor(-0.3)[0] && changeColor(-0.3)[1] > changeColor(0.3)[1]);

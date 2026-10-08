@@ -1,163 +1,123 @@
-import { approachHeat } from "./queue.js";
+/** Heat along the main roads for one measure, drawn on a canvas inside the map. */
 
-export function hourCars(catalog, hour, fallback = 1155) {
-  const slot = catalog?.hours?.find((item) => item.hour === hour);
-  return slot?.cars ?? fallback;
+export const HEAT_MEASURES = ["traffic", "congestion", "air", "noise"];
+
+function clamp(value) {
+  return Math.max(0, Math.min(1, value));
 }
 
-export function intensity(sample, { scenario, cars, peakCars, carFlow, beforeCarFlow, activeLines, queueShare = 0 }) {
-  const hour = Math.max(0.12, cars / Math.max(peakCars || 1233, 1));
-  const rank = sample.rank;
-  const flowRatio = Math.max(0, Math.min(1.5, carFlow / Math.max(beforeCarFlow, 1)));
-  const active = activeLines || ["rossa"];
-  const serving = scenario === "after" && active.length > 0;
-  if (sample.approach) return approachHeat((sample.rank || 0.8) * hour, queueShare);
-  if (sample.bypass) {
-    const rossaOpen = serving && active.includes("rossa");
-    return Math.min(1, rank * hour * (rossaOpen ? 1.2 + 0.25 * flowRatio : 1));
-  }
-  if (sample.line) {
-    const busy = Math.min(1, (sample.rank || 0.7) * hour);
-    if (serving && active.includes(sample.line)) return 0.22;
-    return busy;
-  }
-  if (sample.tram && serving && active.includes("rossa")) return Math.min(1, 0.08 * hour * flowRatio);
-  if (sample.tram && !serving) return Math.min(1, rank * hour);
-  if (sample.ring) {
-    const extra = serving ? 0.3 * flowRatio : 0;
-    return Math.min(1, rank * hour * (0.82 + extra));
-  }
-  const inside = rank * hour * 0.62;
-  return serving ? inside * flowRatio : inside;
+const FIXED_SCALE = {
+  traffic: { lo: 0, hi: 1000 },
+  congestion: { lo: 0.3, hi: 1.1 },
+  air: { lo: 0, hi: 2500 },
+  noise: { lo: 0, hi: 3000 },
+};
+
+/** Cars per lane, load, exhaust per km, or traffic sound energy in car equivalents. */
+export function rawValue(measure, road, state) {
+  if (!state) return 0;
+  if (measure === "traffic") return state.cars / Math.max(1, road.lanes[0] + road.lanes[1]);
+  if (measure === "congestion") return state.worst;
+  if (measure === "air") return state.exhaust / Math.max(0.01, road.length / 1000);
+  if (measure === "noise") return state.noise;
+  return 0;
 }
 
-function mean(values) {
-  return values.reduce((sum, value) => sum + value, 0) / values.length;
+function quantile(sorted, q) {
+  return sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))];
 }
 
-export function placeCongestion(centre, plan, view) {
-  const buckets = { centre: [], avenues: [], rossa: [], verde: [], gialla: [], blu: [] };
-  for (const sample of centre?.samples || []) {
-    const value = intensity(sample, view);
-    if (sample.ring) buckets.avenues.push(value);
-    else if (sample.tram) buckets.rossa.push(value);
-    else buckets.centre.push(value);
-  }
-  for (const line of plan?.lines || []) {
-    const bucket = buckets[line.id];
-    if (!bucket) continue;
-    for (const sample of line.samples || []) bucket.push(intensity(sample, view));
-  }
-  const places = Object.entries(buckets)
-    .filter(([, values]) => values.length)
-    .map(([id, values]) => ({ id, level: mean(values) }));
-  places.push({ id: "bypass", level: intensity({ bypass: true, rank: 0.7 }, view) });
-  places.sort((a, b) => b.level - a.level || a.id.localeCompare(b.id));
-  return places;
+/** The range of one measure across today's roads, so the glow uses the city's own spread. */
+export function heatScale(measure, city, result) {
+  if (measure === "congestion") return FIXED_SCALE.congestion;
+  const values = result.roads
+    .map((state) => rawValue(measure, city.roads[state.id], state))
+    .filter((value) => value > 0)
+    .sort((a, b) => a - b);
+  if (values.length < 10) return FIXED_SCALE[measure];
+  return { lo: 0, hi: quantile(values, 0.95) };
 }
 
-function heatColor(value) {
-  if (value > 0.72) return [154, 52, 18];
-  if (value > 0.52) return [239, 108, 0];
-  if (value > 0.36) return [224, 161, 0];
+/** How strong one measure is on one road, from 0 to 1. */
+export function measureValue(measure, road, state, scale = FIXED_SCALE[measure]) {
+  if (!state || !scale) return 0;
+  return clamp((rawValue(measure, road, state) - scale.lo) / Math.max(1e-9, scale.hi - scale.lo));
+}
+
+export function heatColor(value) {
+  if (value > 0.75) return [154, 52, 18];
+  if (value > 0.55) return [239, 108, 0];
+  if (value > 0.35) return [224, 161, 0];
   return [31, 138, 76];
 }
 
-function changeColor(delta) {
-  if (delta > 0.12) return [154, 52, 18];
-  if (delta > 0.04) return [239, 108, 0];
+export function changeColor(delta) {
+  if (delta > 0.12) return [190, 40, 30];
+  if (delta > 0) return [239, 108, 0];
   if (delta < -0.12) return [31, 138, 76];
-  if (delta < -0.04) return [93, 206, 134];
-  return [224, 161, 0];
+  return [110, 200, 120];
 }
 
-export function createHeat(map, canvas, centre, plan, extra = []) {
+export function createRoadHeat(map, canvas) {
   const ctx = canvas.getContext("2d");
-  const samples = [
-    ...(centre.samples || []),
-    ...(plan?.lines || []).flatMap((line) => line.samples || []),
-    ...extra,
-  ];
-
-  function resize() {
-    const ratio = window.devicePixelRatio || 1;
-    canvas.width = canvas.clientWidth * ratio;
-    canvas.height = canvas.clientHeight * ratio;
-    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
-  }
-
-  const pane = map.createPane("citytraffic");
-  pane.style.zIndex = 250;
+  const pane = map.createPane("roadheat");
+  pane.style.zIndex = 390;
+  pane.style.pointerEvents = "none";
   pane.appendChild(canvas);
   canvas.classList.add("in-pane");
 
-  function place() {
+  function resize() {
+    const ratio = window.devicePixelRatio || 1;
     const size = map.getSize();
     canvas.style.width = `${size.x}px`;
     canvas.style.height = `${size.y}px`;
+    canvas.width = size.x * ratio;
+    canvas.height = size.y * ratio;
+    ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
     const topLeft = map.containerPointToLayerPoint([0, 0]);
     canvas.style.transform = `translate3d(${topLeft.x}px, ${topLeft.y}px, 0)`;
   }
 
-  function paint(view) {
-    place();
+  function paint({ visible, city, measure, mode, before, after }) {
     resize();
-    ctx.clearRect(0, 0, canvas.clientWidth, canvas.clientHeight);
-    canvas.style.opacity = view.heatmap ? "0.9" : "0";
-    if (!view.heatmap || !samples.length) return;
+    const size = map.getSize();
+    ctx.clearRect(0, 0, size.x, size.y);
+    canvas.style.opacity = visible ? "1" : "0";
+    if (!visible || !measure || !city) return;
     const zoom = map.getZoom();
-    const stride = zoom >= 14 ? 1 : 2;
-    const radius = Math.max(16, Math.min(34, 18 * 2 ** (zoom - 13)));
-    const size = canvas.clientWidth;
-    const height = canvas.clientHeight;
-    ctx.globalCompositeOperation = "lighter";
-    for (let index = 0; index < samples.length; index += 1) {
-      const sample = samples[index];
-      if (!sample.line && !sample.bypass && stride > 1 && index % stride) continue;
-      const point = map.latLngToContainerPoint([sample.lat, sample.lon]);
-      if (point.x < -40 || point.y < -40 || point.x > size + 40 || point.y > height + 40) continue;
-      const beforeLevel = intensity(sample, {
-        ...view,
-        scenario: "before",
-        carFlow: view.beforeCarFlow,
-        queueShare: view.beforeQueueShare ?? 0,
-      });
-      const afterLevel = intensity(sample, {
-        ...view,
-        scenario: "after",
-        carFlow: view.afterCarFlow ?? view.carFlow,
-        queueShare: view.afterQueueShare ?? view.queueShare ?? 0,
-      });
-      const value = view.mode === "compare" ? Math.abs(afterLevel - beforeLevel) : intensity(sample, view);
-      if (value < 0.05) continue;
-      const [red, green, blue] = view.mode === "compare" ? changeColor(afterLevel - beforeLevel) : heatColor(value);
-      const glow = ctx.createRadialGradient(point.x, point.y, 0, point.x, point.y, radius);
-      glow.addColorStop(0, `rgba(${red},${green},${blue},${0.18 + 0.55 * value})`);
-      glow.addColorStop(1, `rgba(${red},${green},${blue},0)`);
-      ctx.fillStyle = glow;
+    const width = Math.max(6, Math.min(26, 9 * 2 ** (zoom - 13)));
+    const view = map.getBounds().pad(0.15);
+    const scale = heatScale(measure, city, before);
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const road of city.roads) {
+      if (!view.intersects(road.bounds)) continue;
+      const was = measureValue(measure, road, before.roads[road.id], scale);
+      const now = measureValue(measure, road, after.roads[road.id], scale);
+      let color;
+      let alpha;
+      if (mode === "compare") {
+        const delta = now - was;
+        if (Math.abs(delta) < 0.03) continue;
+        color = changeColor(delta);
+        alpha = Math.min(0.95, 0.5 + 2 * Math.abs(delta));
+      } else {
+        const value = mode === "after" ? now : was;
+        if (value < 0.12) continue;
+        color = heatColor(value);
+        alpha = 0.25 + 0.7 * value;
+      }
+      ctx.strokeStyle = `rgba(${color[0]},${color[1]},${color[2]},${alpha})`;
+      ctx.lineWidth = road.kind === "tertiary" ? width * 0.7 : width;
       ctx.beginPath();
-      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-      ctx.fill();
+      road.path.forEach(([lat, lon], index) => {
+        const point = map.latLngToContainerPoint([lat, lon]);
+        if (index) ctx.lineTo(point.x, point.y);
+        else ctx.moveTo(point.x, point.y);
+      });
+      ctx.stroke();
     }
-    ctx.globalCompositeOperation = "source-over";
   }
 
-  function showCentre() {
-    const box = centre.bbox;
-    if (!box) return;
-    map.fitBounds(
-      [
-        [box[0], box[1]],
-        [box[2], box[3]],
-      ],
-      {
-        paddingTopLeft: [window.innerWidth > 800 ? 430 : 24, 24],
-        paddingBottomRight: [24, 70],
-        maxZoom: 15,
-      },
-    );
-  }
-
-  resize();
-  return { paint, resize, showCentre, note: centre.note, bbox: centre.bbox };
+  return { paint, resize };
 }

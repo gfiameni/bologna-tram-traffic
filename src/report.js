@@ -1,41 +1,5 @@
-import { finding, applyTramPriority } from "./model.js";
-
-export function caseKey(model, scenario, shift, headway, hour) {
-  return `${model}|${scenario}|${shift.toFixed(2)}|${headway.toFixed(1)}|${String(hour).padStart(2, "0")}`;
-}
-
-export function setupScore(before, after, headwayMin) {
-  const extraMinutes = Math.max(0, after.carFieraMin - before.carFieraMin);
-  return after.peoplePerHour - 4 * after.unserved - 90 * extraMinutes - 6 * (60 / headwayMin);
-}
-
-export function searchBestSetup(catalog, model, hour) {
-  if (!catalog?.cases || !catalog.shifts || !catalog.headways) return null;
-  let best = null;
-  const ranked = [];
-  for (const shiftValue of catalog.shifts) {
-    for (const headwayMin of catalog.headways) {
-      const before = catalog.cases[caseKey(model, "before", shiftValue, headwayMin, hour)];
-      const after = catalog.cases[caseKey(model, "after", shiftValue, headwayMin, hour)];
-      if (!before || !after) continue;
-      const timed = applyTramPriority({ before, after }, headwayMin);
-      const row = { shiftValue, headwayMin, score: setupScore(timed.before, timed.after, headwayMin), before: timed.before, after: timed.after };
-      ranked.push(row);
-      if (!best || row.score > best.score) best = row;
-    }
-  }
-  ranked.sort((a, b) => b.score - a.score);
-  return best ? { best, ranked } : null;
-}
-
-export function predictionSentence(modelLabel, hourLabel, best) {
-  const shiftPct = Math.round(best.shiftValue * 100);
-  const extra = Math.round(best.after.carFieraMin - best.before.carFieraMin);
-  const carChange = extra > 0 ? `${extra} min longer` : extra < 0 ? `${Math.abs(extra)} min shorter` : "about the same";
-  const people = Math.round(best.after.peoplePerHour).toLocaleString("en-GB");
-  const waiting = Math.round(best.after.unserved).toLocaleString("en-GB");
-  return `${modelLabel} for ${hourLabel}: ${shiftPct}% of drivers switch, tram every ${best.headwayMin} min. ${people} people an hour pass San Felice, ${waiting} are left waiting, and the car trip from Emilio Lepido to the Fiera is ${carChange}.`;
-}
+/** The exported report. It is always in English. */
+import { decibels, percent, streetRows } from "./impacts.js";
 
 function escapeHtml(value) {
   return String(value)
@@ -53,47 +17,115 @@ function count(value) {
   return Math.round(value).toLocaleString("en-GB");
 }
 
-const METRICS = [
-  ["Car, Emilio Lepido to the Fiera", "carFieraMin", true],
-  ["Car, Emilio Lepido to Agraria", "carPilastroMin", true],
-  ["Bicycle, Emilio Lepido to the Fiera", "bikeFieraMin", true],
-  ["Transit, Emilio Lepido to the Fiera", "transitFieraMin", true],
-  ["Transit, Emilio Lepido to Agraria", "transitPilastroMin", true],
-  ["Car speed on Via Emilia", "viaEmiliaKmh", false],
-  ["Cars / hour through San Felice", "carFlow", false],
-  ["People / hour at San Felice", "peoplePerHour", false],
-  ["Transit riders left waiting", "unserved", false],
-];
+function share(value) {
+  return `${Math.round(value * 100)}%`;
+}
 
-function metricText(key, value, asMinutes) {
-  if (asMinutes) return minutes(value);
-  if (key === "viaEmiliaKmh") return `${Math.round(value)} km/h`;
-  return count(value);
+function signed(value, digits = 0, unit = "") {
+  const rounded = Number(value.toFixed(digits));
+  const sign = rounded > 0 ? "+" : rounded < 0 ? "−" : "";
+  return `${sign}${Math.abs(rounded).toFixed(digits)}${unit}`;
+}
+
+function queueOf(record) {
+  const trunk = record.pieces.trunk;
+  return Math.max(0, trunk.carIn - Math.min(trunk.carOut, trunk.capacity));
+}
+
+export function carChange(before, after) {
+  const extra = Math.round(after.carFieraMin - before.carFieraMin);
+  if (extra > 0) return `${extra} min longer`;
+  if (extra < 0) return `${-extra} min shorter`;
+  return "about the same";
+}
+
+export function setupSentence(modelLabel, hourLabel, option) {
+  const priority = option.priority ? "priority at the lights" : "no priority at the lights";
+  const direction = option.direction === "oneWay" ? "one-way where the tracks run" : "streets as set";
+  const lights = option.lights === "optimised" ? "optimised lights" : "lights as set";
+  return `${modelLabel} at ${hourLabel}: a tram every ${option.headway} min, ${priority}, ${direction}, ${lights}. `
+    + `${count(option.after.peoplePerHour)} people an hour pass Porta San Felice, ${count(option.after.unserved)} wait for a later tram, `
+    + `and the car trip from Emilio Lepido to the Fiera is ${carChange(option.before, option.after)}.`;
+}
+
+function streetTable(design, rows, streetName) {
+  const body = rows.after.map((row) => {
+    const prior = rows.before.find((item) => item.name === row.name);
+    const street = design.streets[row.name];
+    const lanes = (item) => `${item.lanes} ${item.oneWay ? "one way" : "each way"}`;
+    const lights = street ? `${street.cycle}/${Math.min(street.green, street.cycle - 30)} s${street.wave ? ", green wave" : ""}` : "";
+    return `<tr><th>${escapeHtml(streetName(row.name))}</th><td>${street?.width ?? ""} m</td><td>${escapeHtml(lanes(prior))} → ${escapeHtml(lanes(row))}${row.forced ? " (too narrow for two-way)" : ""}</td><td>${escapeHtml(lights)}</td><td>${share(prior.ratio)} → ${share(row.ratio)}</td><td>${prior.los} → ${row.los}</td><td>${count(prior.queue)} → ${count(row.queue)}</td></tr>`;
+  }).join("");
+  return `<table>
+      <thead><tr><th>Street</th><th>Width</th><th>Lanes</th><th>Lights after</th><th>Load</th><th>Level</th><th>Queue / hour</th></tr></thead>
+      <tbody>${body}</tbody>
+    </table>`;
+}
+
+function impactRows(current) {
+  const { before, after } = current.pair;
+  const impacts = current.impacts;
+  const rows = [
+    ["Cars / hour that reach Porta San Felice", count(before.carFlow), count(after.carFlow)],
+    ["Cars / hour queued before Porta San Felice", count(queueOf(before)), count(queueOf(after))],
+    ["Buses and trams / hour", `${count(impacts?.traffic.buses[0] ?? 0)} buses`, impacts?.traffic.trams[1] ? `${impacts.traffic.trams[1].toFixed(1)} trams each way` : `${count(impacts?.traffic.buses[1] ?? 0)} buses`],
+    ["Bicycles / hour on Via Emilia", count(before.bikeFlow), count(after.bikeFlow)],
+    ["Car, Emilio Lepido to the Fiera", minutes(before.carFieraMin), minutes(after.carFieraMin)],
+    ["Car, Emilio Lepido to Agraria", minutes(before.carPilastroMin), minutes(after.carPilastroMin)],
+    ["Transit, Emilio Lepido to the Fiera", minutes(before.transitFieraMin), minutes(after.transitFieraMin)],
+    ["Transit, Emilio Lepido to Agraria", minutes(before.transitPilastroMin), minutes(after.transitPilastroMin)],
+    ["Bicycle, Emilio Lepido to the Fiera", minutes(before.bikeFieraMin), minutes(after.bikeFieraMin)],
+    ["People / hour at Porta San Felice", count(before.peoplePerHour), count(after.peoplePerHour)],
+    ["Transit riders left waiting", count(before.unserved), count(after.unserved)],
+    ["Person-minutes lost / hour on the route", count(current.lost[0]), count(current.lost[1])],
+  ];
+  if (impacts) {
+    rows.push(
+      ["Main roads at level E or F", share(impacts.congestion.city[0]), share(impacts.congestion.city[1])],
+      ["Car-km / hour on the main roads", count(impacts.traffic.carKm[0]), `${count(impacts.traffic.carKm[1])} (${signed(percent(impacts.traffic.carKm[0], impacts.traffic.carKm[1]), 0, "%")})`],
+      ["Exhaust on the route", "today", signed(percent(impacts.air.corridor[0], impacts.air.corridor[1]), 0, "%")],
+      ["Exhaust on the main roads", "today", signed(percent(impacts.air.city[0], impacts.air.city[1]), 0, "%")],
+      ["Traffic noise on the route", "today", signed(decibels(impacts.noise.corridor[0], impacts.noise.corridor[1]), 1, " dB")],
+      ["Traffic noise on the main roads", "today", signed(decibels(impacts.noise.city[0], impacts.noise.city[1]), 1, " dB")],
+    );
+  }
+  return rows.map(([label, b, a]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(b)}</td><td>${escapeHtml(a)}</td></tr>`).join("");
 }
 
 export function reportHtml({
   modelLabel,
   hourLabel,
   hourSlot,
-  best,
-  ranked,
+  setup,
+  current,
+  found,
+  streetName = (name) => name,
   notes = [],
   generatedAt,
 }) {
-  const sentence = predictionSentence(modelLabel, hourLabel, best);
-  const shiftPct = Math.round(best.shiftValue * 100);
-  const comparison = METRICS.map(([label, key, asMinutes]) => {
-    const before = metricText(key, best.before[key], asMinutes);
-    const after = metricText(key, best.after[key], asMinutes);
-    return `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(before)}</td><td>${escapeHtml(after)}</td></tr>`;
-  }).join("");
-  const setups = ranked.map((row) => {
-    const extra = Math.round(row.after.carFieraMin - row.before.carFieraMin);
-    const chosen = row === best ? "Chosen" : "";
-    return `<tr class="${chosen ? "chosen" : ""}"><td>${Math.round(row.shiftValue * 100)}%</td><td>${row.headwayMin} min</td><td>${escapeHtml(count(row.after.peoplePerHour))}</td><td>${escapeHtml(count(row.after.unserved))}</td><td>${extra > 0 ? `+${extra} min` : extra < 0 ? `${extra} min` : "same"}</td><td>${chosen}</td></tr>`;
-  }).join("");
+  const lines = setup.lines.length ? setup.lines.map((id) => id[0].toUpperCase() + id.slice(1)).join(", ") : "none";
+  const lead = `${modelLabel} at ${hourLabel}. A tram every ${setup.headway} min ${setup.design.priority ? "with" : "without"} priority at the lights; `
+    + `${Math.round(setup.shift * 100)}% of car trips switch to the tram. Open lines: ${lines}.`;
   const demand = hourSlot
-    ? `<p>${escapeHtml(count(hourSlot.cars))} cars, ${escapeHtml(count(hourSlot.buses))} buses, and ${escapeHtml(count(hourSlot.bikes))} bicycles an hour are the open-data demand for this hour. Car demand is the weekday loop count on Viale Ercolani (south) and Viale Pietramellara (north-east). The model sends those cars in at Emilio Lepido. Cars that get through arrive at Porta San Felice. The queue is the cars still short of it.</p>`
+    ? `<p>${escapeHtml(count(hourSlot.cars))} cars, ${escapeHtml(count(hourSlot.buses))} buses, and ${escapeHtml(count(hourSlot.bikes))} bicycles an hour are the open-data demand for this hour. Cars enter at Emilio Lepido; those that get through arrive at Porta San Felice.</p>`
+    : "";
+  const changed = (current.changed || []).filter((entry) => entry.after - entry.before > 0.02).map((entry) =>
+    `<li>${escapeHtml(entry.name)}: level ${entry.losBefore} → ${entry.losAfter}, load ${share(entry.before)} → ${share(entry.after)}, cars ${signed(percent(entry.carsBefore, entry.carsAfter), 0, "%")}</li>`,
+  ).join("") || "<li>Main roads keep today's levels.</li>";
+  const best = found?.best;
+  const ranked = (found?.ranked || []).slice(0, 10).map((row) => {
+    const chosen = best && row.headway === best.headway && row.priority === best.priority && row.direction === best.direction;
+    return `<tr class="${chosen ? "chosen" : ""}"><td>${row.headway} min</td><td>${row.priority ? "on" : "off"}</td><td>${row.direction === "oneWay" ? "one-way on tram streets" : "as set"}</td><td>${count(row.after.peoplePerHour)}</td><td>${count(row.after.unserved)}</td><td>${carChange(row.before, row.after)}</td><td>${count(row.cost)}</td></tr>`;
+  }).join("");
+  const search = best
+    ? `<h2>Best setup found</h2>
+    <p class="lead">${escapeHtml(setupSentence(modelLabel, hourLabel, best))}</p>
+    ${streetTable(best.design, { before: streetRows(best.before), after: streetRows(best.after) }, streetName)}
+    <p class="note">The search tries a tram every 3 to 8 minutes, with and without priority, with the streets as set or one-way where the tracks run. It then optimises the winner's lights. The cost is person-minutes an hour: delay for every car that wants the trip and for the streets that cross it, 30 minutes for each car or rider that cannot get through, 10 for each car sent round a one-way street, the riders' time on board, and 300 for each tram an hour.</p>
+    <table>
+      <thead><tr><th>Tram every</th><th>Priority</th><th>Streets</th><th>People / hour</th><th>Waiting</th><th>Car, Emilio Lepido to the Fiera</th><th>Cost</th></tr></thead>
+      <tbody>${ranked}</tbody>
+    </table>`
     : "";
   const notesHtml = notes.filter(Boolean).map((note) => `<li>${escapeHtml(note)}</li>`).join("");
   return `<!DOCTYPE html>
@@ -104,18 +136,14 @@ export function reportHtml({
   <title>Bologna tram network · ${escapeHtml(hourLabel)}</title>
   <style>
     body { margin: 0; background: #1e1e1e; color: #ffffff; font: 16px/1.45 "Segoe UI", sans-serif; }
-    main { max-width: 760px; margin: 0 auto; padding: 40px 28px 72px; }
-    h1, h2 { font-family: Georgia, serif; font-weight: 560; }
-    h1 { font-size: 40px; margin: 8px 0 12px; }
+    main { max-width: 860px; margin: 0 auto; padding: 40px 28px 72px; }
+    h1, h2 { font-weight: 560; }
+    h1 { font-size: 36px; margin: 8px 0 12px; }
     h2 { font-size: 22px; margin: 32px 0 8px; }
     .eyebrow { margin: 0; letter-spacing: 0.14em; text-transform: uppercase; font-size: 12px; color: #76b900; }
     .lead { font-size: 18px; }
-    .setup { display: flex; gap: 28px; margin: 18px 0; }
-    .setup div { background: transparent; border-top: 2px solid #76b900; padding: 8px 0; min-width: 120px; }
-    .setup strong { display: block; font-size: 28px; }
-    .setup span { color: #b5b5b5; font-size: 13px; }
-    table { width: 100%; border-collapse: collapse; background: #2a2a2a; }
-    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); }
+    table { width: 100%; border-collapse: collapse; background: #2a2a2a; margin: 8px 0; }
+    th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid rgba(255, 255, 255, 0.16); font-size: 14px; }
     tr.chosen { outline: 2px solid #76b900; }
     .note, li { color: #b5b5b5; }
     .note { font-size: 14px; }
@@ -124,26 +152,20 @@ export function reportHtml({
 <body>
   <main>
     <p class="eyebrow">Bologna tram network</p>
-    <h1>Best setup</h1>
-    <p class="lead">${escapeHtml(sentence)}</p>
-    <div class="setup">
-      <div><strong>${shiftPct}%</strong><span>of drivers switch</span></div>
-      <div><strong>${best.headwayMin} min</strong><span>between trams</span></div>
-      <div><strong>${escapeHtml(count(best.after.peoplePerHour))}</strong><span>people / hour at San Felice</span></div>
-    </div>
-    <p>${escapeHtml(finding({ before: best.before, after: best.after }))}</p>
-    <h2>${escapeHtml(modelLabel)} · ${escapeHtml(hourLabel)}</h2>
+    <h1>Tram setup report</h1>
+    <p class="lead">${escapeHtml(lead)}</p>
     ${demand}
+    <h2>Streets on the Linea Rossa car route</h2>
+    ${current.impacts ? streetTable(setup.design, current.impacts.streets, streetName) : ""}
+    <p class="note">Level A to F comes from the delay at each junction. Load is cars and buses against the cars the street's lanes and green can carry.</p>
+    <h2>Impact, before and after</h2>
     <table>
-      <thead><tr><th></th><th>Before</th><th>With the tram</th></tr></thead>
-      <tbody>${comparison}</tbody>
+      <thead><tr><th></th><th>Before</th><th>After</th></tr></thead>
+      <tbody>${impactRows(current)}</tbody>
     </table>
-    <h2>Setups compared</h2>
-    <p class="note">The search ranks saved switch shares and tram frequencies for this model and hour. It favours more people through San Felice, a shorter waiting queue, less extra car time from Emilio Lepido to the Fiera, and a tram that still has room.</p>
-    <table>
-      <thead><tr><th>Switch</th><th>Tram every</th><th>People / hour</th><th>Waiting</th><th>Emilio Lepido to the Fiera</th><th></th></tr></thead>
-      <tbody>${setups}</tbody>
-    </table>
+    <h2>Main roads that change most</h2>
+    <ul>${changed}</ul>
+    ${search}
     <h2>What the numbers rest on</h2>
     <ul>${notesHtml}</ul>
     <p class="note">Written ${escapeHtml(generatedAt)}. This is a scenario from the models in this project, not a forecast from the Comune di Bologna.</p>

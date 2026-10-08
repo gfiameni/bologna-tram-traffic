@@ -280,7 +280,7 @@ def main():
         if element["type"] == "node" and tags.get("highway") == "traffic_signals":
             hit = nearest_piece(pieces, element["lon"], element["lat"], 45)
             if hit:
-                signals.append({"piece": hit[1], "s": round(hit[2], 1), "cycle": 90, "green": 40})
+                signals.append({"piece": hit[1], "s": round(hit[2], 1), "cycle": 90, "green": 50})
         elif element["type"] == "node" and tags.get("highway") == "bus_stop":
             hit = nearest_piece(pieces, element["lon"], element["lat"], 50)
             if hit:
@@ -370,7 +370,7 @@ def main():
         "signals": signals,
         "busStops": osm_stops,
         "bikeProtected": protected,
-        "signalTiming": "OSM gives the junction, not the timing. Each signal is modelled as a 90 second cycle with 40 seconds of green for the corridor.",
+        "signalTiming": "OSM gives the junction, not the timing. Today's lights are modelled as a 90 second cycle with 50 seconds of green for the corridor, which lets these streets carry the counted cars. Lights closer than 60 m are one junction.",
         "notes": {
             "cars": (
                 "The boulevard counters do not sit on Via Emilia. Weekday 08:00–09:00 peak direction on "

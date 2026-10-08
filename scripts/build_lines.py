@@ -275,8 +275,9 @@ def main():
         "note": (
             "Four lines from the Tram Bologna network page. Rossa is the corridor already modelled. "
             "Verde follows the published Via dei Mille–Corticella streets. Gialla and Blu follow the "
-            "PUMS corridors named on that page. Each extra open line is a scenario: it takes a share "
-            "of cars off the street and cools the heatmap. It is not a second full assignment model."
+            "PUMS corridors named on that page. An open line takes a share of drivers, gives the "
+            "tracks one lane each way, and sends the cars that no longer fit onto parallel main "
+            "roads. It is not a full assignment model."
         ),
         "extraShift": {"verde": 0.08, "gialla": 0.08, "blu": 0.1},
         "lines": lines,

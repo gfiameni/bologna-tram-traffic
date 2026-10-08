@@ -1,4 +1,4 @@
-"""Optional exact-slider server. The page also works from catalog.json alone."""
+"""Optional model server: the same Python models on CUDA. The page also runs them in the browser."""
 
 import json
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -45,9 +45,10 @@ def main():
             shift = float(body.get("shift", 0.25))
             headway = float(body.get("headway", 4.5))
             hour = int(body.get("hour", 8))
+            design = body.get("design")
             try:
-                before = run(model, corridor, "before", shift, headway, use_warp=device["cuda"], hour=hour)
-                after = run(model, corridor, "after", shift, headway, use_warp=device["cuda"], hour=hour)
+                before = run(model, corridor, "before", shift, headway, use_warp=device["cuda"], hour=hour, design=design)
+                after = run(model, corridor, "after", shift, headway, use_warp=device["cuda"], hour=hour, design=design)
             except KeyError:
                 self._send(400, {"error": "unknown model"})
                 return
