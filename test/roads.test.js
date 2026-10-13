@@ -47,3 +47,10 @@ const trunk = city.roads.filter((road) => road.piece === "trunk");
 check("Via Emilia Ponente follows the corridor model", trunk.length > 0 && trunk.every((road) => rossa.roads[road.id].model));
 check("every road has a level of service", rossa.roads.every((state) => "ABCDEF".includes(state.los)));
 check("trams add noise on their streets", all.roads.some((state) => state.trams > 0 && state.noise > state.cars));
+
+const later = runCity(city, { ...base, scenario: "after", lines: [] });
+const open = (road) => !road.piece;
+check("2026 has its own loop counts", city.roads.some((road) => road.measuredAfter.some(Boolean))
+  && city.roads.some((road, i) => open(road) && Math.abs(later.roads[i].cars - before.roads[i].cars) > 1));
+check("without the tram a road can carry the same cars in 2024 and 2026", city.roads.every((road, i) => !open(road)
+  || (later.roads[i].capacity[0] === before.roads[i].capacity[0] && later.roads[i].capacity[1] === before.roads[i].capacity[1])));

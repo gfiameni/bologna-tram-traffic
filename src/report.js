@@ -83,19 +83,24 @@ function impactRows(current) {
     rows.push(
       ["Main roads at level E or F", share(impacts.congestion.city[0]), share(impacts.congestion.city[1])],
       ["Car-km / hour on the main roads", count(impacts.traffic.carKm[0]), `${count(impacts.traffic.carKm[1])} (${signed(percent(impacts.traffic.carKm[0], impacts.traffic.carKm[1]), 0, "%")})`],
-      ["Exhaust on the route", "today", signed(percent(impacts.air.corridor[0], impacts.air.corridor[1]), 0, "%")],
-      ["Exhaust on the main roads", "today", signed(percent(impacts.air.city[0], impacts.air.city[1]), 0, "%")],
-      ["Traffic noise on the route", "today", signed(decibels(impacts.noise.corridor[0], impacts.noise.corridor[1]), 1, " dB")],
-      ["Traffic noise on the main roads", "today", signed(decibels(impacts.noise.city[0], impacts.noise.city[1]), 1, " dB")],
+      ["Exhaust on the route", "baseline", signed(percent(impacts.air.corridor[0], impacts.air.corridor[1]), 0, "%")],
+      ["Exhaust on the main roads", "baseline", signed(percent(impacts.air.city[0], impacts.air.city[1]), 0, "%")],
+      ["Traffic noise on the route", "baseline", signed(decibels(impacts.noise.corridor[0], impacts.noise.corridor[1]), 1, " dB")],
+      ["Traffic noise on the main roads", "baseline", signed(decibels(impacts.noise.city[0], impacts.noise.city[1]), 1, " dB")],
     );
   }
   return rows.map(([label, b, a]) => `<tr><th>${escapeHtml(label)}</th><td>${escapeHtml(b)}</td><td>${escapeHtml(a)}</td></tr>`).join("");
 }
 
+function demandText(year, slot) {
+  return `in ${year}, ${count(slot.cars)} cars, ${count(slot.buses)} buses and ${count(slot.bikes)} bicycles`;
+}
+
 export function reportHtml({
   modelLabel,
   hourLabel,
-  hourSlot,
+  hourSlots = {},
+  years = { before: 2024, after: 2026 },
   setup,
   current,
   found,
@@ -106,12 +111,13 @@ export function reportHtml({
   const lines = setup.lines.length ? setup.lines.map((id) => id[0].toUpperCase() + id.slice(1)).join(", ") : "none";
   const lead = `${modelLabel} at ${hourLabel}. A tram every ${setup.headway} min ${setup.design.priority ? "with" : "without"} priority at the lights; `
     + `${Math.round(setup.shift * 100)}% of car trips switch to the tram. Open lines: ${lines}.`;
-  const demand = hourSlot
-    ? `<p>${escapeHtml(count(hourSlot.cars))} cars, ${escapeHtml(count(hourSlot.buses))} buses, and ${escapeHtml(count(hourSlot.bikes))} bicycles an hour are the open-data demand for this hour. Cars enter at Emilio Lepido; those that get through arrive at Porta San Felice.</p>`
+  const counted = ["before", "after"].filter((key) => hourSlots[key]).map((key) => demandText(years[key], hourSlots[key]));
+  const demand = counted.length
+    ? `<p>The open-data demand for this hour: ${escapeHtml(counted.join("; "))} an hour. Cars enter at Emilio Lepido; those that get through arrive at Porta San Felice.</p>`
     : "";
   const changed = (current.changed || []).filter((entry) => entry.after - entry.before > 0.02).map((entry) =>
     `<li>${escapeHtml(entry.name)}: level ${entry.losBefore} → ${entry.losAfter}, load ${share(entry.before)} → ${share(entry.after)}, cars ${signed(percent(entry.carsBefore, entry.carsAfter), 0, "%")}</li>`,
-  ).join("") || "<li>Main roads keep today's levels.</li>";
+  ).join("") || "<li>Main roads keep their level or get lighter.</li>";
   const best = found?.best;
   const ranked = (found?.ranked || []).slice(0, 10).map((row) => {
     const chosen = best && row.headway === best.headway && row.priority === best.priority && row.direction === best.direction;
@@ -159,8 +165,9 @@ export function reportHtml({
     ${current.impacts ? streetTable(setup.design, current.impacts.streets, streetName) : ""}
     <p class="note">Level A to F comes from the delay at each junction. Load is cars and buses against the cars the street's lanes and green can carry.</p>
     <h2>Impact, before and after</h2>
+    <p class="note">Before is ${years.before} as counted. After is ${years.after} as counted, with the tram, so the change holds two years of city traffic as well as the tram.</p>
     <table>
-      <thead><tr><th></th><th>Before</th><th>After</th></tr></thead>
+      <thead><tr><th></th><th>Before, ${years.before}</th><th>After, ${years.after}</th></tr></thead>
       <tbody>${impactRows(current)}</tbody>
     </table>
     <h2>Main roads that change most</h2>

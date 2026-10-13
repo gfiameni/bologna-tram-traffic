@@ -29,11 +29,11 @@ The top line of the design panel shows the hour you are looking at, for example 
 
 The three buttons under the title choose the scenario on the map and in every number.
 
-- **Before** is the city today, with no tram.
-- **After** is the city with the tram lines you tick.
-- **Compare** puts After against Before. Green is better and red is worse, on the map and in the labels.
+- **Before** is the 2024 Bologna baseline, with no tram in service. Construction had already started in 2023, so this is a reference year rather than a pre-construction snapshot.
+- **After** is Bologna in 2026, the latest year the Comune and TPER publish, with the tram lines you tick. Its cars, buses, bicycles, road flows, and NO2 are the 2026 counts. With no line ticked, After is 2026 without the tram.
+- **Compare** puts After against Before, so it shows two years of city traffic, works included, together with the tram. Green is better and red is worse, on the map and in the labels.
 
-Changing something that only exists with the tram moves the map from Before to After, so you see the change straight away. That covers the tram lines, the share of drivers who switch, the tram interval, priority, the direction of a street, its lights, and the light optimiser. The keys **1**, **2**, and **3** pick Before, After, and Compare.
+Before shows the 2024 roads and their numbers, with no tram lines, tram service, street design, or moving vehicles: the 2024 streets are two-way with 90 s light cycles and 50 s of green. Time of day and Model are the only settings there. The line at the top of the panel gives the year: 2024, 2026, or 2024 → 2026 in Compare. After and Compare show the lines, the share of drivers who switch, the tram interval, priority, and the street design. The keys **1**, **2**, and **3** pick Before, After, and Compare.
 
 ![Before, with no tram line, then After with Rossa, then Compare](preview.gif)
 
@@ -42,7 +42,7 @@ Changing something that only exists with the tram moves the map from Before to A
 The **Numbers | Heatmap** switch at the top of the impact panel chooses how the map draws the results.
 
 - **Numbers** colours every main road by its level of service and adds congestion bubbles on the biggest roads. Each area gets a label with its numbers. Turn on as many measures as you like with the **Map** switch on each card: traffic, congestion, air quality, and noise.
-- **Heatmap** makes one measure glow along the main roads, on a dark basemap with thin tram lines. The **Map** switches then pick the measure, one at a time. Before and After use a scale set by that measure's spread across the city today, so the two scenarios are drawn alike. Compare shows the change.
+- **Heatmap** makes one measure glow along the main roads, on a dark basemap with thin tram lines. The **Map** switches then pick the measure, one at a time. Before and After use a scale set by that measure's spread across Before, so the two scenarios are drawn alike. Compare shows the change.
 
 ![The heatmap of congestion, then traffic, air quality, and noise, then Compare](heatmap.gif)
 
@@ -55,7 +55,7 @@ In Numbers, with the Congestion **Map** switch on, each main road takes a colour
 | View | Colour |
 | --- | --- |
 | Before, After | Level of service from the load, the cars against what the lanes and green can carry: A under 60%, B under 70%, C under 80%, D under 90%, E under 100%, F at 100% or more |
-| Compare | Dark red: load up by more than 15 points. Orange: up. Light green: down. Dark green: down by more than 15 points. Grey: within 3 points of today |
+| Compare | Dark red: load up by more than 15 points. Orange: up. Light green: down. Dark green: down by more than 15 points. Grey: within 3 points of Before |
 
 The five streets of the Linea Rossa car route take their level from the selected model's delay at each light instead: up to 10 s is A, 20 s B, 35 s C, 55 s D, 80 s E, and F beyond that. With the Congestion **Map** switch off, the roads turn grey so the other measures stand out.
 
@@ -90,7 +90,7 @@ The row colour runs from green (low, or better) through yellow to red (very high
 
 ### Measured NO2
 
-With the Air quality **Map** switch on, in Numbers, the three air stations show the mean NO2 measured in 2026, in µg/m³: Porta San Felice, Giardini Margherita, and Via Chiarini. The tram is not in service yet, so the measured values stay the same in every scenario. The modelled exhaust carries the change.
+With the Air quality **Map** switch on, in Numbers, the three air stations show the mean NO2 measured from 1 January to 16 September, in µg/m³: Porta San Felice, Giardini Margherita, and Via Chiarini. Before shows 2024, After 2026, and Compare both, for example *31→23* at Porta San Felice. The same months in both years keep the seasons alike. The tram is not in service in either year, so the measured change is not a tram effect; the modelled exhaust carries the tram's change.
 
 ### Tram lines, stops, and vehicles
 
@@ -122,7 +122,7 @@ Tick **Rossa**, **Verde**, **Gialla**, and **Blu** in any combination. An open l
 
 ### Streets on the Linea Rossa car route
 
-Pick one of the five streets of the route in **Street**, or select its row in the Street check on the right. Every setting below applies to that street.
+This section appears in After and Compare. Pick one of the five streets of the route in **Street**, or select its row in the Street check on the right. Every setting below applies to that street.
 
 | Street | Part of the route |
 | --- | --- |
@@ -132,15 +132,15 @@ Pick one of the five streets of the route in **Street**, or select its row in th
 | Viale Aldo Moro | Into the Fiera |
 | Via San Donato | To Agraria at Pilastro, for 44% of the cars |
 
-- **Street width, kerb to kerb**, 10 to 24 m. The width sets the lanes. Before, a street of width W has W ÷ 6.5 lanes each way, rounded down. With the tram, the tracks take 6.5 m. Two-way leaves (W − 6.5) ÷ 6.5 lanes each way and one-way leaves (W − 6.5) ÷ 3.25 lanes, both rounded down. The streets start at 13 m, and San Felice · Marconi · Pietramellara at 20 m. Set the real width when you know it.
+- **Street width, kerb to kerb**, 10 to 24 m. The width sets the lanes in both scenarios, so Before and After describe the same street. Before, a street of width W has W ÷ 6.5 lanes each way, rounded down. With the tram, the tracks take 6.5 m. Two-way leaves (W − 6.5) ÷ 6.5 lanes each way and one-way leaves (W − 6.5) ÷ 3.25 lanes, both rounded down. The streets start at 13 m, and San Felice · Marconi · Pietramellara at 20 m. Set the real width when you know it.
 - **Two-way or One-way.** With the tram, one-way gives all the lanes left to the main direction. The cars of the other direction, 75% of the main flow, go round on parallel main roads. A street too narrow for two-way traffic beside the tracks becomes one-way on its own: One-way stays selected and the note under the switch says so.
-- **Lanes note.** Lanes today and with the tracks, for the width and direction you set.
+- **Lanes note.** Lanes without and with the tracks, for the width and direction you set.
 - **Light cycle**, 60 to 120 s, and **Green for this street**, 15 to 90 s. The street that crosses always keeps at least 30 s, so the green stops 30 s short of the cycle.
 - **Green wave** lines up the lights along the street at 30 km/h.
 - **Optimise the lights** finds the cycle, green, and green wave for each of the five streets that lose the fewest person-minutes with the selected model. It tries cycles of 60, 90, and 120 s, with 45%, 60%, or 75% of each as green, and the green wave on or off, one street at a time. The note lists the plan it chose and the person-minutes lost an hour before and after.
-- **Back to today's streets** restores today's widths, directions, and lights on all five streets, and switches tram priority back on.
+- **Back to the starting design** restores the starting widths, directions, and lights on all five streets, and switches tram priority back on.
 
-Before always keeps today's lights. A light plan you set, or the optimiser finds, applies to After, so Compare shows the plan and the tram together.
+Before always keeps the baseline lights. A light plan you set, or the optimiser finds, applies to After, so Compare shows the plan and the tram together.
 
 ![A 10 m street becomes one-way, then one-way at 13 m, then a longer cycle and more green, then a green wave](streets.gif)
 
@@ -148,7 +148,7 @@ Before always keeps today's lights. A light plan you set, or the optimiser finds
 
 ### Time of day
 
-**Time of day** picks one of nine hours measured in the open data: 06:00 early morning, 07:00 building up, 08:00 morning peak, 09:00 late peak, 12:00 midday, 15:00 afternoon, 17:00 evening build-up, 18:00 evening peak, and 21:00 evening. Each hour has its own cars, buses, and bicycles. **Play the day** steps through all nine, and choosing an hour stops it.
+**Time of day** picks one of nine hours measured in the open data: 06:00 early morning, 07:00 building up, 08:00 morning peak, 09:00 late peak, 12:00 midday, 15:00 afternoon, 17:00 evening build-up, 18:00 evening peak, and 21:00 evening. Each hour has its own cars, buses, and bicycles, counted in 2024 for Before and in 2026 for After. **Play the day** steps through all nine, and choosing an hour stops it.
 
 ![Compare at 07:00, 08:00, 12:00, 17:00, and 21:00](time-of-day.gif)
 
@@ -162,7 +162,7 @@ Before always keeps today's lights. A light plan you set, or the optimiser finds
 
 ### Predict best setup
 
-**Predict best setup** searches for the tram setup that loses the fewest person-minutes an hour, with the selected model at the selected hour. It tries a tram every 3 to 8 minutes, with and without priority, with the streets as set or one-way where the tracks run, then optimises the winner's lights. The best setup goes onto the map in After, and the note sums it up, for example: *a tram every 5 min, no priority at the lights, streets as set, optimised lights; 3,628 people an hour pass Porta San Felice, 0 wait for a later tram, and the car trip from Emilio Lepido to the Fiera is 14 min shorter.*
+**Predict best setup** searches for the tram setup that loses the fewest person-minutes an hour, with the selected model at the selected hour. It tries a tram every 3 to 8 minutes, with and without priority, with the streets as set or one-way where the tracks run, then optimises the winner's lights. The best setup goes onto the map in After, and the note sums it up, for example: *a tram every 6.5 min, no priority at the lights, streets as set, optimised lights; 3,064 people an hour pass Porta San Felice, 0 wait for a later tram, and the car trip from Emilio Lepido to the Fiera is 14 min shorter.*
 
 The search weighs everyone in person-minutes an hour: the delay of every car that wants the trip and of the streets that cross the route, 30 minutes for each car or rider who cannot get through, 10 for each car sent round a one-way street, the riders' time on board, and 300 for each tram an hour it takes to run the service.
 
@@ -185,7 +185,7 @@ Each card gives one row for each kind of traffic. Compare shows before → after
 | Card | Row | What it says |
 | --- | --- | --- |
 | Traffic | Cars | Cars an hour that reach Porta San Felice |
-| | Buses and trams | Buses an hour on Via Emilia today, trams an hour each way with the tram |
+| | Buses and trams | Buses an hour on Via Emilia, 49 at 08:00 in 2024 and 37 in 2026, or trams an hour each way with the tram |
 | | Bicycles | Bicycles an hour on Via Emilia |
 | | Main roads | Thousand car-km an hour on the city's main roads, or their change in Compare |
 | Congestion | Main roads | Share of the 397 km of main roads at level E or F |
@@ -194,9 +194,9 @@ Each card gives one row for each kind of traffic. Compare shows before → after
 | Air quality | Cars | The cars' share of exhaust on the route, or its change |
 | | Buses and trams | Trams have no exhaust on the street. With the tram, the buses and their exhaust leave the route |
 | | Main roads | The route's share of main-road exhaust, or the change across the main roads |
-| | NO2 measured today | The three stations, in µg/m³ |
+| | Mean NO2 measured | The three stations, 1 January to 16 September of the scenario's year, in µg/m³ |
 | Traffic noise | Linea Rossa route | Cars, buses, and trams as shares of traffic noise, or the change in decibels |
-| | Parallel streets | The kilometres of parallel streets that take diverted cars, and their change in noise |
+| | Parallel streets | After and Compare: the kilometres of parallel streets that take diverted cars, and their change in noise |
 | | Main roads | The loudest main road, or the change in decibels across the main roads |
 | Getting around | Cars | Car trip from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria |
 | | Buses and trams | The same two trips by bus, or by tram with the tram |
@@ -209,15 +209,15 @@ The **Map** switch on the Traffic, Congestion, Air quality, and Traffic noise ca
 
 ### Street check
 
-The table lists the five streets of the Linea Rossa route with their lanes, load, level of service, and queue. Load is cars and buses against what the street's lanes and green can carry. The level comes from the delay at each junction. Select a row, with a click or with Enter, to edit that street in the design panel.
+The table lists the five streets of the Linea Rossa route with their lanes, load, level of service, and queue. Load is cars and buses against what the street's lanes and green can carry. The level comes from the delay at each junction. In After and Compare, select a row, with a click or with Enter, to edit that street in the design panel.
 
 ### Busiest main roads, or main roads that change most
 
-In Before and After, the list names the five busiest main roads, with their level and load at the busiest point. In Compare, it names the main roads whose load rises, with the change in level and in cars. The note under the list says how the car flows were measured.
+In Before and After, the list names the five busiest main roads, with their level and load at the busiest point. In Compare, it names the main roads whose load rises, with the change in level and in cars. The note under the list says how the car flows were measured, in each year the view shows.
 
 ### All numbers
 
-The table at the bottom gives Before and After side by side: the car, bicycle, and transit trips from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria, the car speed on Via Emilia, the cars an hour that want Via Emilia, reach Porta San Felice, and queue before it, the people an hour at Porta San Felice, the transit riders left waiting, and the person-minutes lost an hour.
+The table at the bottom gives Before and After side by side, and only the Before column in Before: the car, bicycle, and transit trips from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria, the car speed on Via Emilia, the cars an hour that want Via Emilia, reach Porta San Felice, and queue before it, the people an hour at Porta San Felice, the transit riders left waiting, and the person-minutes lost an hour.
 
 ## Keyboard shortcuts
 
@@ -236,9 +236,9 @@ The shortcuts wait while you type in a field or pick from a list.
 The report is a single HTML file in English, named for the hour and the model, for example `bologna-tram-08-ctm.html`. It holds:
 
 - The model, the hour, the tram interval, priority, the share of drivers who switch, and the open lines.
-- The cars, buses, and bicycles of that hour in the open data.
+- The cars, buses, and bicycles of that hour in the open data, for 2024 and 2026.
 - The five streets of the Linea Rossa route as you set them: width, lanes before and after, the lights in After, load, level, and queue.
-- The impact before and after, row by row.
+- The impact before and after, row by row, with Before as 2024 and After as 2026 with the tram.
 - The main roads that change most.
 - The best setup the search found, its streets, and the ten best setups it compared, with their cost.
 - What the numbers rest on: the data sources and the assumptions.
@@ -262,7 +262,7 @@ The report is a single HTML file in English, named for the hour and the model, f
 
 1. Pick a street and move **Light cycle**, **Green for this street**, and **Green wave**. The Street check and the bubbles show the effect.
 2. Press **Optimise the lights** for the plan with the fewest person-minutes lost on all five streets. Its note lists the plan.
-3. Change the hour or the model and optimise again to see whether the plan holds. **Back to today's streets** starts over.
+3. Change the hour or the model and optimise again to see whether the plan holds. **Back to the starting design** starts over.
 
 ### Where do the diverted cars go?
 
@@ -276,7 +276,7 @@ Tick **Verde**, **Gialla**, and **Blu** beside Rossa, in Compare. The Congestion
 
 ### How does the day change the answer?
 
-Press **Play the day** in Compare and watch the bubbles and the cards from 06:00 to 21:00. The morning peak at 08:00 and the evening at 17:00 and 18:00 bring the most cars onto the route: 1,155, 1,199, and 1,233 an hour.
+Press **Play the day** in Compare and watch the bubbles and the cards from 06:00 to 21:00. In 2024, the morning peak at 08:00 and the evening at 17:00 and 18:00 bring 1,130, 1,205, and 1,226 cars an hour onto the route. In 2026 they bring 1,056, 1,188, and 1,201.
 
 ### Do the models agree?
 
@@ -288,4 +288,4 @@ Press **Export report** and send the HTML file. It opens in any browser.
 
 ## Limits
 
-The numbers come from the models in this repository and the data the Comune di Bologna, TPER, and OpenStreetMap publish. They are a scenario, not a forecast or an official figure. A few inputs are assumptions: today's light timings, the street widths, the corridor demand, and car occupancy. Exhaust is a traffic proxy and noise is an estimate from traffic volume. The README [disclaimer](../README.md#disclaimer) lists them all.
+The numbers come from the models in this repository and the 2024 and 2026 data the Comune di Bologna and TPER publish. Street geometry and signal positions come from the OpenStreetMap snapshot retrieved in 2026; the measured part of each scenario is the traffic, transit, bicycle, and air data of its year, not an archived street map. The 2026 counts include the tram works, so Compare puts that change and the modelled tram together. They are a scenario, not a forecast or an official figure. A few inputs are assumptions: the baseline light timings, the street widths, the corridor demand, and car occupancy. Exhaust is a traffic proxy and noise is an estimate from traffic volume. The README [disclaimer](../README.md#disclaimer) lists them all.

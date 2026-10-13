@@ -1,7 +1,7 @@
 """Street layout and signal plan for each piece of the car route.
 
-Before is today's street: two-way, 90 second cycle, 50 seconds of green, no
-coordination between junctions. That plan lets today's streets carry the
+Before is the 2024 baseline street: two-way, 90 second cycle, 50 seconds of green, no
+coordination between junctions. That plan lets the baseline streets carry the
 counted 1,155 cars an hour at 08:00. After is the tram design the user sets:
 width, direction, cycle, green, green wave, and whether trams get priority.
 """

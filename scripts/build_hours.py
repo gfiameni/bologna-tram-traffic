@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
-"""Hourly car, bus, and bicycle demand for the corridor selector.
+"""Hourly car, bus, and bicycle demand for the corridor selector, for Before and After.
 
-Cars come from the weekday boulevard loops already saved in data/raw.
-Buses come from the cached TPER GTFS at Porta San Felice.
-Bicycles come from the Stalingrado counter on the open-data API.
+Cars come from the weekday boulevard loops already saved in data/raw, 2024 for Before and
+2026 for After. Buses come from TPER at Porta San Felice: the Comune's historical table for
+Friday 6 September 2024, and the published GTFS for Friday 11 September 2026. Bicycles come
+from the San Donato counter, the nearest to the corridor, on the same two days.
 """
 
 import csv
 import json
 import subprocess
 from collections import defaultdict
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -17,7 +19,11 @@ RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "hours.json"
 UA = "bologna-tram-traffic/1.0 (educational corridor model)"
 STOP_ID = "52"
-SERVICE_DAY = "20260923"
+COUNTER = "San Donato"
+YEARS = {
+    "before": {"year": "2024", "day": "2024-09-06"},
+    "after": {"year": "2026", "day": "2026-09-11"},
+}
 
 SLOTS = (
     (6, "06:00 · early morning"),
@@ -52,13 +58,15 @@ def hour_columns():
     return names
 
 
-def car_hours():
+def car_hours(year):
     wanted = {("Viale Ercolani", "Sud"), ("Viale Pietramellara", "Nord Est")}
     bins = hour_columns()
     samples = {key: defaultdict(list) for key in wanted}
     with (RAW / "traffico-viali.csv").open(encoding="utf-8-sig", newline="") as handle:
         for row in csv.DictReader(handle, delimiter=";"):
             key = (row.get("via_spira") or "", row.get("direzione") or "")
+            if not (row.get("data") or "").startswith(f"{year}-"):
+                continue
             if key not in wanted or "feriale" not in (row.get("tipo_giorno") or ""):
                 continue
             for hour, (left, right) in enumerate(bins):
@@ -75,50 +83,67 @@ def car_hours():
     return hours
 
 
-def weekday_services(gtfs):
-    services = set()
-    with (gtfs / "calendar.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("wednesday") == "1" and row.get("start_date", "9") <= SERVICE_DAY <= row.get("end_date", "0"):
-                services.add(row["service_id"])
-    added, removed = set(), set()
-    with (gtfs / "calendar_dates.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("date") != SERVICE_DAY:
-                continue
-            if row.get("exception_type") == "1":
-                added.add(row["service_id"])
-            elif row.get("exception_type") == "2":
-                removed.add(row["service_id"])
-    return (services | added) - removed
-
-
-def bus_hours():
-    gtfs = RAW / "gtfs"
-    services = weekday_services(gtfs)
-    trips = set()
-    with (gtfs / "trips.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("service_id") in services:
-                trips.add(row["trip_id"])
+def count_hours(rows):
     counts = defaultdict(set)
-    with (gtfs / "stop_times.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("stop_id") != STOP_ID or row.get("trip_id") not in trips:
-                continue
-            parts = (row.get("arrival_time") or "").split(":")
-            if len(parts) < 2:
-                continue
-            hour = int(parts[0]) % 24
-            counts[hour].add(row["trip_id"])
+    for trip, clock in rows:
+        parts = clock.split(":")
+        if len(parts) < 2:
+            continue
+        counts[int(parts[0]) % 24].add(trip)
     return [len(counts[hour]) for hour in range(24)]
 
 
-def bike_hours():
+def tper_bus_hours(day):
+    rows = []
+    with (RAW / "tper-september-2024.csv").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("date") != day or row.get("giorno") != "feriale":
+                continue
+            if row.get("stop_id") != STOP_ID or (row.get("stop_name") or "").upper() != "PORTA SAN FELICE":
+                continue
+            rows.append((row["trip_id"], row.get("arrival_time") or ""))
+    return count_hours(rows)
+
+
+def gtfs_services(gtfs, day):
+    key = day.replace("-", "")
+    weekday = date.fromisoformat(day).strftime("%A").lower()
+    services = set()
+    with (gtfs / "calendar.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get(weekday) == "1" and row.get("start_date", "9") <= key <= row.get("end_date", "0"):
+                services.add(row["service_id"])
+    with (gtfs / "calendar_dates.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("date") != key:
+                continue
+            if row.get("exception_type") == "1":
+                services.add(row["service_id"])
+            elif row.get("exception_type") == "2":
+                services.discard(row["service_id"])
+    return services
+
+
+def gtfs_bus_hours(day):
+    gtfs = RAW / "gtfs"
+    services = gtfs_services(gtfs, day)
+    with (gtfs / "trips.txt").open(encoding="utf-8-sig", newline="") as handle:
+        trips = {row["trip_id"] for row in csv.DictReader(handle) if row.get("service_id") in services}
+    rows = []
+    with (gtfs / "stop_times.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("stop_id") == STOP_ID and row.get("trip_id") in trips:
+                rows.append((row["trip_id"], row.get("arrival_time") or ""))
+    return count_hours(rows)
+
+
+def bike_hours(day):
+    start = date.fromisoformat(day).toordinal()
+    first = date.fromordinal(start - 1).isoformat()
     url = (
         "https://opendata.comune.bologna.it/api/explore/v2.1/catalog/datasets/colonnine-conta-bici/records"
-        "?limit=100&where=colonnina%3D%22Stalingrado_II%22%20AND%20"
-        "data%3E%3D%222026-09-22T22%3A00%3A00%22%20AND%20data%3C%222026-09-23T22%3A00%3A00%22"
+        f"?limit=100&where=colonnina%3D%22{COUNTER.replace(' ', '%20')}%22%20AND%20"
+        f"data%3E%3D%22{first}T22%3A00%3A00%22%20AND%20data%3C%22{day}T22%3A00%3A00%22"
     )
     payload = json.loads(subprocess.check_output(["curl", "-sS", "-L", "-A", UA, "--max-time", "40", url]))
     hours = [0] * 24
@@ -133,25 +158,25 @@ def bike_hours():
     return hours
 
 
-def main():
-    cars = car_hours()
-    buses = bus_hours()
-    bikes = bike_hours()
-    print("cars", [cars[hour] for hour, _ in SLOTS])
-    print("buses", [buses[hour] for hour, _ in SLOTS])
-    print("bikes", [bikes[hour] for hour, _ in SLOTS])
+def year_slots(key):
+    year, day = YEARS[key]["year"], YEARS[key]["day"]
+    cars = car_hours(year)
+    buses = tper_bus_hours(day) if key == "before" else gtfs_bus_hours(day)
+    bikes = bike_hours(day)
+    print(year, "cars", [cars[hour] for hour, _ in SLOTS])
+    print(year, "buses", [buses[hour] for hour, _ in SLOTS])
+    print(year, "bikes", [bikes[hour] for hour, _ in SLOTS])
     if cars[8] < 800:
-        raise SystemExit("morning car count looks wrong")
-    slots = []
-    for hour, label in SLOTS:
-        slots.append({
-            "hour": hour,
-            "label": label,
-            "cars": cars[hour],
-            "buses": buses[hour],
-            "bikes": max(bikes[hour], 0),
-        })
-    OUT.write_text(json.dumps({"sourceDay": "2026-09-23", "slots": slots}))
+        raise SystemExit(f"{year} morning car count looks wrong")
+    slots = [{"hour": hour, "label": label, "cars": cars[hour], "buses": buses[hour], "bikes": max(bikes[hour], 0)}
+             for hour, label in SLOTS]
+    return {"year": int(year), "sourceDay": day, "slots": slots}
+
+
+def main():
+    before = year_slots("before")
+    after = year_slots("after")
+    OUT.write_text(json.dumps({**before, "after": after}))
     print("wrote", OUT)
 
 

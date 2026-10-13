@@ -100,6 +100,15 @@ h1 {
   border-top: 1px solid var(--line);
 }
 
+body.view-before #tram-lines,
+body.view-before #tram-service,
+body.view-before #tram-actions,
+body.view-before #street-editor,
+body.view-before .playback,
+body.view-before #legend > .legend-vehicles,
+body.view-before #numbers th:nth-child(3),
+body.view-before #numbers td:nth-child(3) { display: none; }
+
 .group h2 {
   margin: 0 0 6px;
   font-size: 14px;
@@ -413,8 +422,8 @@ dl.modes > div:has(dd:empty) { display: none; }
 #street-table { margin: 6px 0 0; font-size: 12.5px; }
 #street-table th, #street-table td { padding: 6px 4px 6px 0; vertical-align: middle; }
 #street-table tbody th { color: var(--ink); font-weight: 500; }
-#street-table tbody tr { cursor: pointer; }
-#street-table tbody tr:hover { background: #2a2a2a; }
+#street-table tbody tr[data-street] { cursor: pointer; }
+#street-table tbody tr[data-street]:hover { background: #2a2a2a; }
 #street-table tbody tr.selected th { color: var(--accent); }
 
 .los-badge {

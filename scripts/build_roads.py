@@ -3,10 +3,11 @@
 
 Roads are OpenStreetMap trunk, primary, secondary and tertiary ways. Motorways and streets
 closed to private cars are left out. Counts come from the Comune di Bologna loop detectors
-(rilevazione-flusso-veicoli-tramite-spire-anno-2026, CC BY 4.0). Each detector covers one
-lane. A road's flow is the median of each hour over the school-term Tuesdays to Thursdays
-of May and late September 2026, per lane. A road without a detector borrows the nearest
-measured stretch of the same street, or the median of its road class.
+(rilevazione-flusso-veicoli-tramite-spire-anno-2024 and -anno-2026, CC BY 4.0): 2024 for
+Before and 2026 for After. Each detector covers one lane. A road's flow is the median of each
+hour over the school-term Tuesdays to Thursdays of May and late September of that year, per
+lane. A road without a detector borrows the nearest measured stretch of the same street, or
+the median of its road class.
 
 Each road on a tram line lists the stretches of line it sits on, and each road running
 alongside a line, 80 m to 1.2 km away, lists its share of the cars that line pushes off
@@ -32,9 +33,12 @@ OVERPASS = (
     "https://overpass.kumi.systems/api/interpreter",
     "https://overpass.openstreetmap.fr/api/interpreter",
 )
-SPIRE = "https://opendata.comune.bologna.it/api/explore/v2.1/catalog/datasets/rilevazione-flusso-veicoli-tramite-spire-anno-2026/exports/csv"
-SPIRE_PAGE = "https://opendata.comune.bologna.it/explore/dataset/rilevazione-flusso-veicoli-tramite-spire-anno-2026/"
-PERIODS = (("2026-05-04", "2026-05-29"), ("2026-09-15", "2026-09-30"))
+SPIRE = "https://opendata.comune.bologna.it/api/explore/v2.1/catalog/datasets/rilevazione-flusso-veicoli-tramite-spire-anno-{year}/exports/csv"
+SPIRE_PAGE = "https://opendata.comune.bologna.it/explore/dataset/rilevazione-flusso-veicoli-tramite-spire-anno-{year}/"
+YEARS = {
+    "before": {"year": 2024, "periods": (("2024-05-06", "2024-05-31"), ("2024-09-16", "2024-09-30"))},
+    "after": {"year": 2026, "periods": (("2026-05-04", "2026-05-29"), ("2026-09-15", "2026-09-30"))},
+}
 TYPICAL = {"Martedì", "Mercoledì", "Giovedì"}
 WEEKDAYS = TYPICAL | {"Lunedì", "Venerdì"}
 CLASSES = ("trunk", "primary", "secondary", "tertiary")
@@ -75,13 +79,13 @@ def overpass(query, dest):
     raise SystemExit("Overpass did not answer")
 
 
-def spire_rows():
+def spire_rows(spec):
     rows = []
-    for first, last in PERIODS:
+    for first, last in spec["periods"]:
         dest = RAW / f"spire-{first[:7]}.csv"
         if not (dest.exists() and dest.stat().st_size > 1000):
             dest.parent.mkdir(parents=True, exist_ok=True)
-            subprocess.check_call(["curl", "-sS", "--max-time", "300", "-G", SPIRE,
+            subprocess.check_call(["curl", "-sS", "--max-time", "300", "-G", SPIRE.format(year=spec["year"]),
                                    "--data-urlencode", f"where=data >= date'{first}' AND data <= date'{last}'",
                                    "--data-urlencode", "delimiter=;", "-o", str(dest)])
         with dest.open(encoding="utf-8-sig") as handle:
@@ -292,6 +296,8 @@ def detectors(rows, slots):
 
 
 def match(found, roads):
+    """Detectors on each road side, by road index."""
+    by_road = defaultdict(lambda: [[], []])
     starts, steps, owners = [], [], []
     for index, road in enumerate(roads):
         starts.append(road["xy"][:-1])
@@ -323,18 +329,19 @@ def match(found, roads):
             if best is None or score < best[0]:
                 best = (score, owners[seg], side)
         if best:
-            roads[best[1]].setdefault("found", [[], []])[best[2]].append(item)
+            by_road[best[1]][best[2]].append(item)
             matched += 1
-    return matched
+    return by_road, matched
 
 
-def flows(roads, slots):
+def flows(roads, by_road, slots):
+    """Hourly profiles, the profile each road side uses, and which sides are measured."""
     profiles = []
-    measured = defaultdict(list)
+    flow = [[-1, -1] for _ in roads]
+    measured = [[False, False] for _ in roads]
+    by_kind = defaultdict(list)
     for index, road in enumerate(roads):
-        road["flow"] = [-1, -1]
-        road["measured"] = [False, False]
-        for side, items in enumerate(road.get("found", [[], []])):
+        for side, items in enumerate(by_road.get(index, [[], []])):
             if not items or road["lanes"][side] == 0:
                 continue
             stations = defaultdict(list)
@@ -344,41 +351,58 @@ def flows(roads, slots):
             peaks = [np.mean([item["peak"] for item in group]) for group in stations.values()]
             profile = np.mean(lane_profiles, axis=0)
             profiles.append({"cars": [int(round(v)) for v in profile], "peak": int(round(float(np.mean(peaks))))})
-            road["flow"][side] = len(profiles) - 1
-            road["measured"][side] = True
-            measured[road["kind"]].append(len(profiles) - 1)
+            flow[index][side] = len(profiles) - 1
+            measured[index][side] = True
+            by_kind[road["kind"]].append(len(profiles) - 1)
     defaults = {}
     for kind in CLASSES:
-        pool = [profiles[i] for i in measured[kind]] or profiles
+        pool = [profiles[i] for i in by_kind[kind]] or profiles
         profiles.append({"cars": [int(round(statistics.median(p["cars"][s] for p in pool))) for s in range(len(slots))],
                          "peak": int(round(statistics.median(p["peak"] for p in pool)))})
         defaults[kind] = len(profiles) - 1
     by_name = defaultdict(list)
-    for road in roads:
-        if road["name"] and any(road["measured"]):
-            by_name[road["name"]].append(road)
-    for road in roads:
+    for index, road in enumerate(roads):
+        if road["name"] and any(measured[index]):
+            by_name[road["name"]].append(index)
+    for index, road in enumerate(roads):
         middle = road["xy"].mean(0)
         heading = bearing(*(road["xy"][-1] - road["xy"][0]))
         for side in (0, 1):
-            if road["lanes"][side] == 0 or road["measured"][side]:
+            if road["lanes"][side] == 0 or measured[index][side]:
                 continue
             travel = (heading + 180 * side) % 360
             best = None
-            for other in by_name.get(road["name"], []):
+            for other_index in by_name.get(road["name"], []):
+                other = roads[other_index]
                 distance = float(np.hypot(*(other["xy"].mean(0) - middle)))
                 if distance > 1500:
                     continue
                 other_heading = bearing(*(other["xy"][-1] - other["xy"][0]))
                 for other_side in (0, 1):
-                    if not other["measured"][other_side]:
+                    if not measured[other_index][other_side]:
                         continue
                     turn = angle_gap(travel, (other_heading + 180 * other_side) % 360)
                     score = distance + (0 if turn <= 60 else 1000)
                     if best is None or score < best[0]:
-                        best = (score, other["flow"][other_side])
-            road["flow"][side] = best[1] if best else defaults[road["kind"]]
-    return profiles, defaults
+                        best = (score, flow[other_index][other_side])
+            flow[index][side] = best[1] if best else defaults[road["kind"]]
+    return profiles, defaults, flow, measured
+
+
+def year_flows(key, roads, slots):
+    spec = YEARS[key]
+    found = detectors(spire_rows(spec), slots)
+    by_road, matched = match(found, roads)
+    profiles, defaults, flow, measured = flows(roads, by_road, slots)
+    days = [day for period in spec["periods"] for day in period]
+    note = (f"{len(found)} detectors with a typical weekday, {matched} of them on these roads. Each detector covers one lane. "
+            f"Flows are the median of each hour over the school-term Tuesdays to Thursdays of {days[0]} to {days[1]} "
+            f"and {days[2]} to {days[3]}. A road without a detector borrows the nearest measured stretch of the same "
+            "street, or the median of its road class.")
+    print(f"{spec['year']}: {len(found)} detectors ({matched} matched), "
+          f"{sum(1 for sides in measured if any(sides))} roads measured")
+    return {"year": spec["year"], "profiles": profiles, "classes": defaults, "flow": flow, "measured": measured,
+            "note": note, "source": SPIRE_PAGE.format(year=spec["year"])}
 
 
 def count_signals(roads, signals):
@@ -488,9 +512,8 @@ def main():
     roads, signals = load_roads()
     for road in roads:
         road["length"] = float(np.hypot(*np.diff(road["xy"], axis=0).T).sum())
-    found = detectors(spire_rows(), slots)
-    matched = match(found, roads)
-    profiles, defaults = flows(roads, slots)
+    before = year_flows("before", roads, slots)
+    after = year_flows("after", roads, slots)
     count_signals(roads, signals)
     line_data = json.loads((ROOT / "public" / "lines.json").read_text())["lines"]
     tram_lines = {line["id"]: polylines(line["segments"]) for line in line_data}
@@ -503,7 +526,7 @@ def main():
     line_ids = list(tram_lines)
     piece_ids = list(car_pieces)
     columns = defaultdict(list)
-    for road in roads:
+    for index, road in enumerate(roads):
         keep = simplify(road["xy"], 3.0)
         columns["name"].append(names.index(road["name"]))
         columns["kind"].append(CLASSES.index(road["kind"]))
@@ -512,35 +535,37 @@ def main():
         columns["oneWay"].append(int(road["oneWay"]))
         columns["lanes"].append(road["lanes"])
         columns["signals"].append(road["signals"])
-        columns["flow"].append(road["flow"])
-        columns["measured"].append(int(road["measured"][0]) + 2 * int(road["measured"][1]))
+        for suffix, year in (("", before), ("After", after)):
+            sides = year["measured"][index]
+            columns[f"flow{suffix}"].append(year["flow"][index])
+            columns[f"measured{suffix}"].append(int(sides[0]) + 2 * int(sides[1]))
         columns["tram"].append(sum(1 << line_ids.index(name) for name in road["tram"]))
         columns["piece"].append(piece_ids.index(road["piece"]) if road["piece"] else -1)
         columns["tramBins"].append(road["tramBins"])
         columns["spill"].append(road["spill"])
-    measured_roads = sum(1 for road in roads if any(road["measured"]))
-    days = sorted({row_day for first, last in PERIODS for row_day in (first, last)})
     data = {
-        "attribution": "Roads © OpenStreetMap contributors (ODbL). Car counts © Comune di Bologna, loop detectors 2026 (CC BY 4.0).",
-        "source": SPIRE_PAGE,
-        "note": (f"{len(found)} detectors with a typical weekday, {matched} of them on these roads. Each detector covers one lane. "
-                 f"Flows are the median of each hour over the school-term Tuesdays to Thursdays of {days[0]} to {days[1]} "
-                 f"and {days[2]} to {days[3]}. A road without a detector borrows the nearest measured stretch of the same "
-                 "street, or the median of its road class."),
+        "attribution": (f"Roads © OpenStreetMap contributors (ODbL). Car counts © Comune di Bologna, loop detectors "
+                        f"{before['year']} and {after['year']} (CC BY 4.0)."),
+        "years": {"before": before["year"], "after": after["year"]},
+        "source": before["source"],
+        "sourceAfter": after["source"],
+        "note": before["note"],
+        "noteAfter": after["note"],
         "hours": slots,
         "kinds": list(CLASSES),
         "lines": line_ids,
         "pieces": piece_ids,
         "bins": bins,
         "binM": BIN_M,
-        "classes": defaults,
-        "profiles": profiles,
+        "classes": before["classes"],
+        "classesAfter": after["classes"],
+        "profiles": before["profiles"],
+        "profilesAfter": after["profiles"],
         "names": names,
         "roads": columns,
     }
     OUT.write_text(json.dumps(data, ensure_ascii=False, separators=(",", ":")))
-    print(f"{len(roads)} roads, {measured_roads} measured, {len(found)} detectors ({matched} matched), "
-          f"{len(bins)} line stretches, {OUT.stat().st_size // 1024} KB")
+    print(f"{len(roads)} roads, {len(bins)} line stretches, {OUT.stat().st_size // 1024} KB")
 
 
 if __name__ == "__main__":

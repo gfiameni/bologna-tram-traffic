@@ -39,7 +39,8 @@ const found = await searchBestSetup(corridor, { model: "bpr", shift: 0.25, hour:
 const html = reportHtml({
   modelLabel: "Volume-delay",
   hourLabel: "08:00 · morning peak",
-  hourSlot: hourRow(corridor, 8),
+  hourSlots: { before: hourRow(corridor, 8, "before"), after: hourRow(corridor, 8, "after") },
+  years: { before: 2024, after: 2026 },
   setup: { shift: 0.25, headway: 4.5, lines: ["rossa"], design: merge(null) },
   current,
   found,
@@ -49,6 +50,7 @@ const html = reportHtml({
 });
 
 check("the report names the streets", Object.values(NAMES).every((name) => html.includes(name)));
+check("the report gives the demand of both years", html.includes("in 2024, ") && html.includes("in 2026, ") && html.includes("After, 2026"));
 check("the report has no NaN or undefined", !/NaN|undefined/.test(html));
 check("every trip names both ends", html.includes("Emilio Lepido to the Fiera") && html.includes("Emilio Lepido to Agraria"));
 check("the report ranks ten setups", (html.match(/<tr class="(chosen)?">/g) || []).length === 10);

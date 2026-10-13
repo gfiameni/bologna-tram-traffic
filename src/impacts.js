@@ -186,12 +186,12 @@ export function changedStreets(city, before, after, limit = 5) {
 
 /** Cars, buses and bicycles, before and after, for the impact cards. */
 export function modeImpacts({ pair, corridor, hour, headway, rossaOpen, city, cityBefore, cityAfter }) {
-  const demand = hourRow(corridor, hour);
+  const busesBefore = hourRow(corridor, hour, "before").buses;
   const after = pair.after;
   const before = pair.before;
   const trams = rossaOpen ? tramPassages(headway) : 0;
-  const busesAfter = rossaOpen ? 0 : demand.buses;
-  const envBefore = corridorEnvironment(before, { buses: demand.buses, trams: 0 });
+  const busesAfter = rossaOpen ? 0 : hourRow(corridor, hour, "after").buses;
+  const envBefore = corridorEnvironment(before, { buses: busesBefore, trams: 0 });
   const envAfter = corridorEnvironment(after, { buses: busesAfter, trams });
   const streetsBefore = streetRows(before);
   const streetsAfter = streetRows(after);
@@ -203,7 +203,7 @@ export function modeImpacts({ pair, corridor, hour, headway, rossaOpen, city, ci
     traffic: {
       cars: [before.carFlow, after.carFlow],
       demand: [before.pieces.trunk.carIn, after.pieces.trunk.carIn],
-      buses: [demand.buses, busesAfter],
+      buses: [busesBefore, busesAfter],
       trams: [0, rossaOpen ? 60 / headway : 0],
       bikes: [before.bikeFlow, after.bikeFlow],
       carKm: [cityB.carKm, cityA.carKm],

@@ -18,14 +18,32 @@ export function loadCorridor(data) {
     occupancy: data.supply.occupancy ?? 1.3,
     passengersPerBus: data.supply.passengersPerBus ?? 45,
     hours: data.hours || [],
+    year: data.years?.before ?? 2024,
+    after: data.supply.after
+      ? {
+          carPerHour: data.supply.after.carPerHour,
+          bikePerHour: data.supply.after.bikePerHour,
+          busPerHour: data.supply.after.busPerHour,
+          hours: data.hoursAfter || [],
+          year: data.years?.after ?? 2026,
+        }
+      : null,
     weights: data.surrogate?.weights || null,
   };
 }
 
-export function hourRow(corridor, hour) {
-  const row = corridor.hours.find((item) => Number(item.hour) === Number(hour));
+/** The corridor with the measured demand of Before (2024) or After (2026). */
+export function forYear(corridor, key) {
+  if (key !== "after" || !corridor.after) return corridor;
+  return { ...corridor, ...corridor.after, after: null };
+}
+
+/** The measured demand at one hour, in the year of `key` ("before" or "after"). */
+export function hourRow(corridor, hour, key) {
+  const source = forYear(corridor, key);
+  const row = source.hours.find((item) => Number(item.hour) === Number(hour));
   if (row) return row;
-  return { hour: 8, cars: corridor.carPerHour, buses: corridor.busPerHour, bikes: corridor.bikePerHour };
+  return { hour: 8, cars: source.carPerHour, buses: source.busPerHour, bikes: source.bikePerHour };
 }
 
 export function demand(corridor, scenario, shift, hour = 8) {

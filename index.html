@@ -11,7 +11,7 @@
       rel="stylesheet"
     />
   </head>
-  <body>
+  <body class="view-before">
     <div id="map"></div>
     <canvas id="heat"></canvas>
     <canvas id="vehicles"></canvas>
@@ -35,7 +35,7 @@
       </div>
       <p id="map-caption"></p>
 
-      <section class="group">
+      <section class="group" id="tram-lines">
         <h2 data-i18n="group.lines">Tram lines</h2>
         <div id="lines" role="group" aria-label="Planned tram lines" data-i18n-aria="lines.group">
           <label class="line-rossa"><input type="checkbox" value="rossa" checked> Rossa</label>
@@ -45,7 +45,7 @@
         </div>
       </section>
 
-      <section class="group">
+      <section class="group" id="tram-service">
         <h2 data-i18n="group.service">Tram service</h2>
         <label class="slider">
           <span><span data-i18n="control.shift">Car trips that switch to the tram</span> <strong id="shift-value">25%</strong></span>
@@ -85,7 +85,7 @@
         <button type="button" class="toggle" id="wave" aria-pressed="false"><i aria-hidden="true"></i><span data-i18n="control.wave">Green wave</span></button>
         <div class="actions">
           <button type="button" id="optimise" class="action" data-i18n="control.optimise">Optimise the lights</button>
-          <button type="button" id="reset-design" class="action quiet" data-i18n="control.reset">Back to today's streets</button>
+          <button type="button" id="reset-design" class="action quiet" data-i18n="control.reset">Back to the 2024 baseline</button>
         </div>
         <p id="optimise-note" class="note"></p>
       </section>
@@ -108,7 +108,7 @@
         <p id="model-use" class="note"></p>
       </section>
 
-      <section class="group">
+      <section class="group" id="tram-actions">
         <div class="actions">
           <button type="button" id="predict" class="action" data-i18n="control.predict">Predict best setup</button>
           <button type="button" id="export-report" class="action quiet" data-i18n="control.export">Export report</button>
@@ -258,7 +258,7 @@
       <span class="legend-vehicles"><i class="swatch car"></i><span data-i18n="legend.car">Car</span></span>
       <span class="legend-vehicles"><i class="swatch bike"></i><span data-i18n="legend.bike">Bicycle</span></span>
       <span class="legend-vehicles"><i class="swatch bus"></i><span data-i18n="legend.bus">Bus</span></span>
-      <span class="legend-vehicles"><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
+      <span class="legend-vehicles" id="legend-tram"><i class="swatch tram"></i><span data-i18n="legend.tram">Tram</span></span>
       <span id="los-key" class="los-key"><b data-i18n="legend.los">Level of service</b><i class="los A">A</i><i class="los B">B</i><i class="los C">C</i><i class="los D">D</i><i class="los E">E</i><i class="los F">F</i></span>
       <span id="change-key" class="scale-key" hidden><b id="change-title" data-i18n="legend.change">Change</b><span data-i18n="legend.less">less</span><i class="diverging"></i><span data-i18n="legend.more">more</span></span>
       <span id="heat-key" class="scale-key" hidden><b id="heat-title"></b><span data-i18n="legend.low">low</span><i class="heat-swatch"></i><span data-i18n="legend.high">high</span></span>

@@ -1,9 +1,10 @@
 /**
  * Congestion on Bologna's main roads, before and after the tram.
  *
- * Each road carries the cars per lane its loop detectors count in that hour, or the count
- * it borrows from the same street or its road class. Capacity is lanes × 1,800 cars an hour
- * × the share of green. On an open tram line a road gives one lane to the tracks (a road
+ * Each road carries the cars per lane its loop detectors count in that hour (2024 in Before,
+ * 2026 in After), or the count it borrows from the same street or its road class. Capacity
+ * is lanes × 1,800 cars an hour × the share of green, or the busiest hour either year
+ * measured. On an open tram line a road gives one lane to the tracks (a road
  * with one lane each way shares it with the tram), loses the drivers who switch, and, with
  * priority, loses the green the trams take. Cars that no longer fit move to parallel roads
  * within 1.2 km. Roads on the Linea Rossa car route take their numbers from the selected
@@ -57,7 +58,9 @@ export function loadRoads(data) {
     lanes: column.lanes[i],
     signals: column.signals[i],
     flow: column.flow[i],
-    measured: [Boolean(column.measured[i] & 1), Boolean(column.measured[i] & 2)],
+    flowAfter: column.flowAfter?.[i] ?? column.flow[i],
+    measured: sides(column.measured[i]),
+    measuredAfter: sides(column.measuredAfter?.[i] ?? column.measured[i]),
     tram: data.lines.filter((_, k) => column.tram[i] & (1 << k)),
     piece: column.piece[i] >= 0 ? data.pieces[column.piece[i]] : null,
     tramBins: column.tramBins[i],
@@ -67,11 +70,31 @@ export function loadRoads(data) {
     roads,
     hours: data.hours,
     profiles: data.profiles,
+    profilesAfter: data.profilesAfter || data.profiles,
+    years: data.years || { before: 2024, after: 2024 },
     binLine: data.bins.map((line) => data.lines[line]),
     attribution: data.attribution,
     source: data.source,
+    sourceAfter: data.sourceAfter || data.source,
     note: data.note,
+    noteAfter: data.noteAfter || data.note,
   };
+}
+
+function sides(bits) {
+  return [Boolean(bits & 1), Boolean(bits & 2)];
+}
+
+/** The profile a road side carries in Before or After. */
+export function sideProfile(city, road, side, scenario) {
+  const after = scenario === "after";
+  const index = (after ? road.flowAfter : road.flow)[side];
+  return index >= 0 ? (after ? city.profilesAfter : city.profiles)[index] : null;
+}
+
+/** Whether a road side has its own detector in Before or After. */
+export function sideMeasured(road, side, scenario) {
+  return (scenario === "after" ? road.measuredAfter : road.measured)[side];
 }
 
 export function hourIndex(city, hour) {
@@ -110,15 +133,17 @@ export function priorityLoss(greenShare, headway) {
   return Math.min(MAX_GREEN_LOST, (tramPassages(headway) * TRAM_HOLD_S) / Math.max(greenShare * 3600, 1));
 }
 
-function corridorPiece(road, corridor, scenario, rossaOpen) {
+function corridorPiece(road, corridor, scenario) {
   if (!corridor) return null;
-  const record = scenario === "after" && rossaOpen ? corridor.after : corridor.before;
+  const record = scenario === "after" ? corridor.after : corridor.before;
   return record?.pieces?.[road.piece] ? { record, report: record.pieces[road.piece] } : null;
 }
 
 /**
  * Cars, load, and level of service on every road for one scenario.
- * `corridor` is the selected model's before and after; `buses` are the corridor's buses an hour.
+ * `corridor` is the selected model's before and after, with After run on 2026 traffic
+ * without the tram when the Linea Rossa is off; `buses` are the corridor's buses an hour
+ * in this scenario's year.
  */
 export function runCity(city, {
   scenario = "before",
@@ -154,7 +179,7 @@ export function runCity(city, {
         covered[bin] += length;
       }
     };
-    const piece = road.piece ? corridorPiece(road, corridor, scenario, rossaOpen) : null;
+    const piece = road.piece ? corridorPiece(road, corridor, scenario) : null;
     if (piece) {
       const { report } = piece;
       const ratio = report.pceIn / Math.max(1, report.capacity);
@@ -180,9 +205,10 @@ export function runCity(city, {
     let crossSection = 0;
     for (const side of [0, 1]) {
       const lanes = road.lanes[side];
-      if (!lanes || road.flow[side] < 0) continue;
-      const profile = city.profiles[road.flow[side]];
-      let perLane = laneCapacity(road, profile);
+      const profile = sideProfile(city, road, side, scenario);
+      if (!lanes || !profile) continue;
+      const busiest = Math.max(sideProfile(city, road, side, "before")?.peak ?? 0, sideProfile(city, road, side, "after")?.peak ?? 0);
+      let perLane = laneCapacity(road, { peak: busiest });
       let demand = profile.cars[slot] * lanes;
       let carLanes = lanes;
       if (open.length) {

@@ -16,31 +16,32 @@ from sim.surrogate import save, train
 
 
 def designs():
-    today = default_design()
-    no_priority = copy.deepcopy(today)
+    baseline = default_design()
+    no_priority = copy.deepcopy(baseline)
     no_priority["priority"] = False
-    one_way = copy.deepcopy(today)
+    one_way = copy.deepcopy(baseline)
     for name in ("trunk", "city"):
         one_way["streets"][name]["oneWay"] = True
-    lights = copy.deepcopy(today)
+    lights = copy.deepcopy(baseline)
     for street in lights["streets"].values():
         street.update(cycle=120, green=75, wave=True)
-    narrow = copy.deepcopy(today)
+    narrow = copy.deepcopy(baseline)
     narrow["streets"]["trunk"]["width"] = 11.0
     narrow["streets"]["bypass"]["width"] = 16.0
-    return {"today": today, "no-priority": no_priority, "one-way": one_way, "lights": lights, "narrow": narrow}
+    return {"baseline": baseline, "no-priority": no_priority, "one-way": one_way, "lights": lights, "narrow": narrow}
 
 
 def reference(corridor):
+    """Before and After for each case; the baseline also runs 2026 traffic without the tram."""
     cases = []
     for design_id, design in designs().items():
         for name in MODELS:
             for hour in (8, 21):
                 settings = [(0.25, 4.5)]
-                if design_id == "today":
+                if design_id == "baseline":
                     settings += [(0.0, 4.5), (0.25, 3.0)]
                 for shift, headway in settings:
-                    cases.append({
+                    case = {
                         "model": name,
                         "design": design_id,
                         "hour": hour,
@@ -48,8 +49,21 @@ def reference(corridor):
                         "headway": headway,
                         "before": run(name, corridor, "before", shift, headway, hour=hour, design=design),
                         "after": run(name, corridor, "after", shift, headway, hour=hour, design=design),
-                    })
+                    }
+                    if design_id == "baseline":
+                        case["withoutTram"] = run(name, corridor, "before", shift, headway, hour=hour, design=design, year="after")
+                    cases.append(case)
     return {"designs": designs(), "cases": cases}
+
+
+def supply_after(later):
+    return {
+        "carPerHour": later.car_per_hour,
+        "bikePerHour": later.bike_per_hour,
+        "busPerHour": later.bus_per_hour,
+        "busLines": later.bus_lines,
+        "notes": later.notes,
+    }
 
 
 def browser_inputs(corridor, weights):
@@ -63,6 +77,8 @@ def browser_inputs(corridor, weights):
         "defaultModel": "ctm",
         "defaultHour": 8,
         "hours": corridor.hours,
+        "hoursAfter": corridor.for_year("after").hours,
+        "years": {"before": corridor.year, "after": corridor.for_year("after").year},
         "device": describe(),
         "pieces": {
             name: {
@@ -87,6 +103,7 @@ def browser_inputs(corridor, weights):
             "passengersPerBus": corridor.passengers_per_bus,
             "notes": corridor.notes,
             "signalTiming": corridor.signal_timing,
+            "after": supply_after(corridor.for_year("after")),
         },
         "surrogate": {
             "weights": weights,

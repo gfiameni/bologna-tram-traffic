@@ -1,5 +1,5 @@
 import json
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from sim.geometry import polyline_length
@@ -37,9 +37,28 @@ class Corridor:
     notes: dict
     signal_timing: str
     hours: list = field(default_factory=list)
+    year: int = 2024
+    after: dict = field(default_factory=dict)
 
     def piece(self, name):
         return self.pieces[name]
+
+    def for_year(self, key):
+        """The corridor with the measured demand of Before (2024) or After (2026)."""
+        if key != "after" or not self.after:
+            return self
+        after = self.after
+        return replace(
+            self,
+            car_per_hour=after["car_per_hour"],
+            bike_per_hour=after["bike_per_hour"],
+            bus_per_hour=after["bus_per_hour"],
+            bus_lines=after["bus_lines"],
+            notes=after["notes"],
+            hours=after["hours"],
+            year=after["year"],
+            after={},
+        )
 
 
 def load(root=ROOT):
@@ -65,16 +84,20 @@ def load(root=ROOT):
         tram_stops[stop["branch"]] = tram_stops.get(stop["branch"], 0) + 1
     centre = max(0.0, tram_length["trunk"] - network["screenline"]["tramTrunkM"] - pieces["city"].length)
     hours_path = root / "data" / "hours.json"
-    if hours_path.exists():
-        hours = json.loads(hours_path.read_text())["slots"]
-    else:
-        hours = [{
-            "hour": 8,
-            "label": "08:00 · morning peak",
-            "cars": raw["carPerHour"],
-            "buses": raw["busPerHour"],
-            "bikes": raw["bikePerHour"],
-        }]
+    table = json.loads(hours_path.read_text()) if hours_path.exists() else {}
+    hours = table.get("slots") or peak_only(raw)
+    after = {}
+    if raw.get("after"):
+        later = raw["after"]
+        after = {
+            "car_per_hour": later["carPerHour"],
+            "bike_per_hour": later["bikePerHour"],
+            "bus_per_hour": later["busPerHour"],
+            "bus_lines": later.get("busLines") or [],
+            "notes": later.get("notes") or {},
+            "hours": (table.get("after") or {}).get("slots") or peak_only(later),
+            "year": later["year"],
+        }
     return Corridor(
         pieces=pieces,
         tram_length=tram_length,
@@ -89,4 +112,16 @@ def load(root=ROOT):
         notes=raw.get("notes") or {},
         signal_timing=raw.get("signalTiming", ""),
         hours=hours,
+        year=raw.get("year", 2024),
+        after=after,
     )
+
+
+def peak_only(raw):
+    return [{
+        "hour": 8,
+        "label": "08:00 · morning peak",
+        "cars": raw["carPerHour"],
+        "buses": raw["busPerHour"],
+        "bikes": raw["bikePerHour"],
+    }]

@@ -27,7 +27,7 @@ function quantile(sorted, q) {
   return sorted[Math.min(sorted.length - 1, Math.floor(q * (sorted.length - 1)))];
 }
 
-/** The range of one measure across today's roads, so the glow uses the city's own spread. */
+/** The range of one measure across the Before roads, so the glow uses the city's own spread. */
 export function heatScale(measure, city, result) {
   if (measure === "congestion") return FIXED_SCALE.congestion;
   const values = result.roads

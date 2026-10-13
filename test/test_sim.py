@@ -62,6 +62,11 @@ def main():
     numpy_accel = 1.2 * (1.0 - ratio ** 4 - (star / gap) ** 2)
     check("Warp car-following matches NumPy", device_accel is not None and np.max(np.abs(device_accel - numpy_accel)) < 1e-4)
 
+    later = corridor.for_year("after")
+    check("After reads the 2026 counts", later.year == 2026 and later.hours != corridor.hours)
+    check("a run follows the scenario's year", run("bpr", corridor, "after", 0.0, 4.5) == run("bpr", later, "after", 0.0, 4.5))
+    check("a run can take the other year", run("bpr", corridor, "after", 0.0, 4.5, year="before") != run("bpr", corridor, "after", 0.0, 4.5))
+
     before = run("ctm", corridor, "before", 0.0, 4.5)
     after = run("ctm", corridor, "after", 0.0, 4.5)
     check("giving a lane to the tram cuts car throughput", after["carFlow"] < before["carFlow"] * 0.75)
@@ -107,7 +112,7 @@ def main():
         street.update(cycle=120, green=75, wave=True)
     timed = run("ctm", corridor, "after", 0.25, 4.5, design=wave)
     check("longer greens in a green wave carry more cars", timed["carFlow"] > held["carFlow"])
-    check("the lights only change the tram design, not today", run("ctm", corridor, "before", 0.25, 4.5, design=wave)["carFlow"] == run("ctm", corridor, "before", 0.25, 4.5)["carFlow"])
+    check("the lights only change the tram design, not the 2024 baseline", run("ctm", corridor, "before", 0.25, 4.5, design=wave)["carFlow"] == run("ctm", corridor, "before", 0.25, 4.5)["carFlow"])
     bpr_wave = run("bpr", corridor, "after", 0.25, 4.5, design=wave)
     check("volume-delay is faster with the green wave", bpr_wave["carFieraMin"] < bpr_after["carFieraMin"])
     print("holdout MAE", weights["holdoutMinutesMae"], "min")

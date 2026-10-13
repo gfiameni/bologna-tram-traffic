@@ -20,13 +20,17 @@ function close(a, b, tolerance) {
   return Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(b));
 }
 
+// Each fixture run: the scenario, and the year of the counts (null follows the scenario).
+const RUNS = { before: ["before", null], after: ["after", null], withoutTram: ["before", "after"] };
+
 const worst = {};
 for (const item of reference.cases) {
   const design = reference.designs[item.design];
   const tolerance = 1e-6;
-  for (const scenario of ["before", "after"]) {
-    const ours = runModel(item.model, corridor, scenario, item.shift, item.headway, { hour: item.hour, design });
-    const theirs = item[scenario];
+  for (const [key, [scenario, year]] of Object.entries(RUNS)) {
+    if (!item[key]) continue;
+    const ours = runModel(item.model, corridor, scenario, item.shift, item.headway, { hour: item.hour, design, year });
+    const theirs = item[key];
     const misses = [];
     for (const key of KEYS) {
       if (!close(ours[key], theirs[key], tolerance)) misses.push(`${key} ${ours[key]} vs ${theirs[key]}`);
@@ -39,7 +43,8 @@ for (const item of reference.cases) {
       }
       if (ours.pieces[name].oneWay !== piece.oneWay || ours.pieces[name].forcedOneWay !== piece.forcedOneWay) misses.push(`${name} direction`);
     }
-    check(`${item.model} ${item.design} ${item.hour}:00 shift ${item.shift} tram ${item.headway} min ${scenario} matches Python`, misses.length === 0, misses.slice(0, 4).join("; "));
+    check(`${item.model} ${item.design} ${item.hour}:00 shift ${item.shift} tram ${item.headway} min ${key} matches Python`, misses.length === 0, misses.slice(0, 4).join("; "));
   }
 }
+check("the fixtures include 2026 traffic without the tram", reference.cases.some((item) => item.withoutTram));
 console.log("largest relative gap by model", worst);

@@ -1,7 +1,7 @@
 /**
  * Street layout and signal plan for each piece of the car route. A port of sim/design.py.
  *
- * Before is today's street: two-way, 90 second cycle, 50 seconds of green, no
+ * Before is the 2024 baseline street: two-way, 90 second cycle, 50 seconds of green, no
  * coordination between junctions. After is the tram design the user sets:
  * width, direction, cycle, green, green wave, and whether trams get priority.
  */

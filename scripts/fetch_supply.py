@@ -5,7 +5,10 @@ Sources, all public:
 - OpenStreetMap traffic signals, cycleways, and bus stops
 - Comune di Bologna loop detectors (traffico-viali)
 - Comune di Bologna bicycle counters (colonnine-conta-bici)
-- TPER GTFS for the Bologna bus network
+- TPER timetables: the Comune's September 2024 historical table and the September 2026 GTFS
+
+Before uses 2024 and After uses 2026. Both years count the same Friday in the same
+week of September, at the same bicycle counter.
 """
 
 import csv
@@ -14,7 +17,7 @@ import math
 import subprocess
 import zipfile
 from collections import defaultdict
-from io import TextIOWrapper
+from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -22,6 +25,13 @@ RAW = ROOT / "data" / "raw"
 OUT = ROOT / "data" / "supply.json"
 UA = "bologna-tram-traffic/1.0 (educational corridor model)"
 SCREEN = (11.32803, 44.49898)
+YEARS = {
+    "before": {"year": "2024", "day": "2024-09-06"},
+    "after": {"year": "2026", "day": "2026-09-11"},
+}
+SERVICE_FILE_ID = "18m9zqbXD0ao6BY8-5mOPQefOfoKrX9k8"
+GTFS_VERSION = "20260909"
+STOP_NAME = "PORTA SAN FELICE"
 
 
 def curl(url, dest=None):
@@ -117,7 +127,7 @@ out geom;
     return data["elements"]
 
 
-def fetch_loops():
+def fetch_loops(year):
     path = RAW / "traffico-viali.csv"
     curl(
         "https://opendata.comune.bologna.it/api/explore/v2.1/catalog/datasets/traffico-viali/exports/csv?delimiter=%3B&use_labels=false",
@@ -128,6 +138,8 @@ def fetch_loops():
     with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle, delimiter=";")
         for row in reader:
+            if not (row.get("data") or "").startswith(f"{year}-"):
+                continue
             if "feriale" not in (row.get("tipo_giorno") or ""):
                 continue
             try:
@@ -138,12 +150,12 @@ def fetch_loops():
     return rows
 
 
-def fetch_bikes():
-    # 06:00–07:00 UTC is 08:00–09:00 in Bologna.
+def fetch_bikes(day):
+    # 06:00–07:00 UTC is 08:00–09:00 in Bologna in September.
     url = (
         "https://opendata.comune.bologna.it/api/explore/v2.1/catalog/datasets/colonnine-conta-bici/records"
         "?limit=100&offset={offset}&where="
-        + "data%3E%3D%222026-09-23T06:00:00%22%20AND%20data%3C%222026-09-23T07:00:00%22"
+        + f"data%3E%3D%22{day}T06:00:00%22%20AND%20data%3C%22{day}T07:00:00%22"
     )
     records = []
     for offset in range(0, 800, 100):
@@ -152,111 +164,122 @@ def fetch_bikes():
         records.extend(batch)
         if len(batch) < 100:
             break
-    print("bike records", len(records))
+    print("bike records", day, len(records))
     return records
 
 
-def fetch_gtfs():
-    path = RAW / "gommagtfsbo.zip"
-    if path.exists() and zipfile.is_zipfile(path):
-        print("cached gtfs")
-        dest = RAW / "gtfs"
-        if not (dest / "stops.txt").exists():
-            with zipfile.ZipFile(path) as archive:
-                archive.extractall(dest)
-        return dest
+def fetch_tper():
+    """Official Comune di Bologna historical TPER table for September 2024."""
+    path = RAW / "tper-september-2024.csv"
+    if path.exists() and path.stat().st_size > 1_000_000:
+        print("cached", path.name)
+        return path
     url = (
-        "https://solweb.tper.it/web/tools/open-data/open-data-download.aspx"
-        "?source=solweb.tper.it&filename=gommagtfsbo&version=20260909&format=zip"
+        "https://drive.usercontent.google.com/download"
+        f"?id={SERVICE_FILE_ID}&export=download&confirm=t"
     )
     curl(url, path)
-    print("gtfs bytes", path.stat().st_size)
-    if path.stat().st_size < 1000 or zipfile.is_zipfile(path) is False:
-        print("gtfs download was not a zip")
-        return None
+    print("TPER bytes", path.stat().st_size)
+    return path
+
+
+def fetch_gtfs():
+    """TPER's published GTFS for September 2026."""
     dest = RAW / "gtfs"
-    dest.mkdir(parents=True, exist_ok=True)
+    if (dest / "stop_times.txt").exists():
+        print("cached gtfs")
+        return dest
+    path = RAW / "gommagtfsbo.zip"
+    if not (path.exists() and zipfile.is_zipfile(path)):
+        url = (
+            "https://solweb.tper.it/web/tools/open-data/open-data-download.aspx"
+            f"?source=solweb.tper.it&filename=gommagtfsbo&version={GTFS_VERSION}&format=zip"
+        )
+        curl(url, path)
+    if not zipfile.is_zipfile(path):
+        raise SystemExit("the TPER GTFS download was not a zip")
     with zipfile.ZipFile(path) as archive:
         archive.extractall(dest)
     return dest
 
 
-def weekday_services(gtfs):
-    services = set()
-    with (gtfs / "calendar.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("wednesday") != "1":
-                continue
-            if row.get("start_date", "99999999") <= "20260923" <= row.get("end_date", "00000000"):
-                services.add(row["service_id"])
-    added, removed = set(), set()
-    dates = gtfs / "calendar_dates.txt"
-    if dates.exists():
-        with dates.open(encoding="utf-8-sig", newline="") as handle:
-            for row in csv.DictReader(handle):
-                if row.get("date") != "20260923":
-                    continue
-                if row.get("exception_type") == "1":
-                    added.add(row["service_id"])
-                elif row.get("exception_type") == "2":
-                    removed.add(row["service_id"])
-    return (services | added) - removed
-
-
-def buses_from_gtfs(gtfs, pieces):
-    if gtfs is None:
-        return None
-    services = weekday_services(gtfs)
-    print("wednesday services", len(services))
-    near_stops = []
-    with (gtfs / "stops.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            try:
-                lon, lat = float(row["stop_lon"]), float(row["stop_lat"])
-            except (KeyError, ValueError):
-                continue
-            if hav((lon, lat), SCREEN) > 160:
-                continue
-            near_stops.append((row["stop_id"], row.get("stop_name") or "", lon, lat))
-    print("screenline stops", len(near_stops))
-    if not near_stops:
-        return None
-    stop_ids = {item[0] for item in near_stops}
-    trip_route = {}
-    trip_service = {}
-    with (gtfs / "trips.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("service_id") in services:
-                trip_service[row["trip_id"]] = row["service_id"]
-                trip_route[row["trip_id"]] = row.get("route_id")
-    routes = {}
-    with (gtfs / "routes.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            routes[row["route_id"]] = row.get("route_short_name") or row["route_id"]
+def busiest_stop(rows):
+    """Trips 08:00–09:00 at the Porta San Felice stop with the most of them, and their lines."""
     counts = defaultdict(set)
     lines = defaultdict(set)
-    with (gtfs / "stop_times.txt").open(encoding="utf-8-sig", newline="") as handle:
-        for row in csv.DictReader(handle):
-            if row.get("stop_id") not in stop_ids:
-                continue
-            trip = row.get("trip_id")
-            if trip not in trip_service:
-                continue
-            hour = parse_hour(row.get("arrival_time") or row.get("departure_time") or "")
-            if hour is None or not (8 <= hour < 9):
-                continue
-            counts[row["stop_id"]].add(trip)
-            lines[row["stop_id"]].add(routes.get(trip_route.get(trip), ""))
+    for stop_id, trip, route, clock in rows:
+        hour = parse_hour(clock)
+        if hour is None or not (8 <= hour < 9):
+            continue
+        counts[stop_id].add(trip)
+        lines[stop_id].add(route)
     if not counts:
         return None
     stop_id, trips = max(counts.items(), key=lambda item: len(item[1]))
-    buses = len(trips)
-    name = next(item[1] for item in near_stops if item[0] == stop_id)
     return {
-        "per_hour": buses,
-        "stop": name,
+        "per_hour": len(trips),
+        "stop": "Porta San Felice",
         "lines": sorted(line for line in lines[stop_id] if line),
     }
+
+
+def buses_from_tper(path, day):
+    rows = []
+    with path.open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("date") != day or row.get("giorno") != "feriale":
+                continue
+            if (row.get("stop_name") or "").upper() != STOP_NAME:
+                continue
+            rows.append((row["stop_id"], row.get("trip_id"), row.get("route_id") or "",
+                         row.get("arrival_time") or row.get("departure_time") or ""))
+    return busiest_stop(rows)
+
+
+def gtfs_trips(gtfs, day):
+    """Trip id to route id, for every trip that runs on the day."""
+    key = day.replace("-", "")
+    weekday = date.fromisoformat(day).strftime("%A").lower()
+    services = set()
+    with (gtfs / "calendar.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get(weekday) == "1" and row.get("start_date", "9") <= key <= row.get("end_date", "0"):
+                services.add(row["service_id"])
+    with (gtfs / "calendar_dates.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("date") != key:
+                continue
+            if row.get("exception_type") == "1":
+                services.add(row["service_id"])
+            elif row.get("exception_type") == "2":
+                services.discard(row["service_id"])
+    trips = {}
+    with (gtfs / "trips.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("service_id") in services:
+                trips[row["trip_id"]] = row.get("route_id") or ""
+    return trips
+
+
+def gtfs_stop_ids(gtfs):
+    with (gtfs / "stops.txt").open(encoding="utf-8-sig", newline="") as handle:
+        return {row["stop_id"] for row in csv.DictReader(handle) if (row.get("stop_name") or "").upper() == STOP_NAME}
+
+
+def buses_from_gtfs(gtfs, day):
+    trips = gtfs_trips(gtfs, day)
+    stops = gtfs_stop_ids(gtfs)
+    rows = []
+    with (gtfs / "stop_times.txt").open(encoding="utf-8-sig", newline="") as handle:
+        for row in csv.DictReader(handle):
+            if row.get("stop_id") in stops and row.get("trip_id") in trips:
+                rows.append((row["stop_id"], row["trip_id"], trips[row["trip_id"]],
+                             row.get("arrival_time") or row.get("departure_time") or ""))
+    return busiest_stop(rows)
+
+
+def day_label(day):
+    return date.fromisoformat(day).strftime("%A %-d %b %Y")
 
 
 def parse_hour(value):
@@ -305,7 +328,27 @@ def main():
         protected[name] = close / len(sample) > 0.35
     print("protected", protected)
 
-    loops = fetch_loops()
+    before = year_demand("before", pieces)
+    after = year_demand("after", pieces, counter=before.pop("counter"))
+    after.pop("counter")
+    supply = {
+        **before,
+        "occupancy": 1.3,
+        "passengersPerBus": 45,
+        "signals": signals,
+        "busStops": osm_stops,
+        "bikeProtected": protected,
+        "signalTiming": "OSM gives the junction, not the timing. The baseline lights are modelled as a 90 second cycle with 50 seconds of green for the corridor, which lets these streets carry the counted cars. Lights closer than 60 m are one junction.",
+        "after": after,
+    }
+    supply["notes"]["signals"] = f"{len(signals)} OSM traffic signals snapped onto the car routes. {signal_phrase(protected)}"
+    OUT.parent.mkdir(parents=True, exist_ok=True)
+    OUT.write_text(json.dumps(supply))
+    print("wrote", OUT)
+
+
+def car_sites(year):
+    loops = fetch_loops(year)
     keywords = ("emilia", "saffi", "san felice", "stalingrado", "san donato", "pietramellara", "ercolani", "marconi", "amendola")
     matched = [row for row in loops if any(word in row[0].lower() for word in keywords)]
     pool = matched or loops
@@ -320,74 +363,79 @@ def main():
     for name, directions in by_site.items():
         peak, direction = max(directions)
         chosen.append((name, direction, peak))
-    car_per_hour = int(round(median(sorted(item[2] for item in chosen)))) if chosen else 2000
-    car_per_hour = max(800, min(3500, car_per_hour))
-    sites = [f"{name} {direction} {peak:.0f}" for name, direction, peak in sorted(chosen)]
-    print("car/h", car_per_hour, sites)
+    return chosen
 
-    bikes = fetch_bikes()
-    by_counter = defaultdict(lambda: {"bikes": 0.0, "hours": 0, "lon": None, "lat": None, "in": 0.0, "out": 0.0})
-    for row in bikes:
+
+def bike_counter(records, pieces, counter=None):
+    """The counter nearest the corridor, or the named one, and its peak-direction flow."""
+    by_counter = defaultdict(lambda: {"hours": 0, "lon": None, "lat": None, "in": 0.0, "out": 0.0})
+    for row in records:
         point = row.get("geo_point_2d") or {}
         item = by_counter[row.get("colonnina") or "unknown"]
-        item["bikes"] += float(row.get("totale") or 0)
         item["in"] += float(row.get("direzione_centro") or 0)
         item["out"] += float(row.get("direzione_periferia") or 0)
         item["hours"] += 1
         item["lon"] = point.get("lon", item["lon"])
         item["lat"] = point.get("lat", item["lat"])
     route_points = [(lon, lat) for points in pieces.values() for lon, lat, _s in points[::4]]
-    bike_choice = None
+    choice = None
     for name, item in by_counter.items():
-        if not item["hours"] or item["lon"] is None:
+        if not item["hours"] or item["lon"] is None or (counter and name != counter):
             continue
         dist = min(hav((item["lon"], item["lat"]), point) for point in route_points)
         per_hour = max(item["in"], item["out"]) / item["hours"]
-        if bike_choice is None or dist < bike_choice[0]:
-            bike_choice = (dist, name, per_hour, item["hours"])
-    bike_per_hour = int(round(bike_choice[2])) if bike_choice else 120
-    print("bike", bike_choice)
+        if choice is None or dist < choice[0]:
+            choice = (dist, name, per_hour)
+    return choice
 
-    gtfs = fetch_gtfs()
-    bus = buses_from_gtfs(gtfs, pieces) if gtfs else None
-    if bus:
-        bus_per_hour = bus["per_hour"]
-        bus_note = f"TPER GTFS, Wednesday 23 Sep 2026, 08:00–09:00 at {bus['stop']}"
-        bus_lines = bus["lines"][:12]
+
+def year_demand(key, pieces, counter=None):
+    """Morning-peak cars, buses, and bicycles on the corridor for Before or After."""
+    year, day = YEARS[key]["year"], YEARS[key]["day"]
+    chosen = car_sites(year)
+    car_per_hour = int(round(median(sorted(item[2] for item in chosen)))) if chosen else 2000
+    car_per_hour = max(800, min(3500, car_per_hour))
+    sites = [f"{name} {direction} {peak:.0f}" for name, direction, peak in sorted(chosen)]
+    print(year, "car/h", car_per_hour, sites)
+
+    bike = bike_counter(fetch_bikes(day), pieces, counter)
+    if bike is None:
+        raise SystemExit(f"no bicycle count on {day}" + (f" at {counter}" if counter else ""))
+    bike_per_hour = int(round(bike[2]))
+    print(year, "bike", bike)
+
+    if key == "before":
+        bus = buses_from_tper(fetch_tper(), day)
+        source = "TPER historical timetable"
     else:
-        bus_per_hour = 12
-        bus_note = "GTFS count unavailable; 12 buses/hour is a fallback"
-        bus_lines = []
-    print("buses/h", bus_per_hour, bus_lines[:8])
+        bus = buses_from_gtfs(fetch_gtfs(), day)
+        source = "TPER GTFS timetable"
+    if not bus:
+        raise SystemExit(f"no TPER trips at Porta San Felice on {day}")
+    bus_lines = bus["lines"][:12]
+    print(year, "buses/h", bus["per_hour"], bus_lines)
 
-    supply = {
+    return {
+        "year": int(year),
+        "day": day,
         "carPerHour": car_per_hour,
         "bikePerHour": bike_per_hour,
-        "busPerHour": bus_per_hour,
+        "busPerHour": bus["per_hour"],
         "busLines": bus_lines,
-        "occupancy": 1.3,
-        "passengersPerBus": 45,
-        "signals": signals,
-        "busStops": osm_stops,
-        "bikeProtected": protected,
-        "signalTiming": "OSM gives the junction, not the timing. Today's lights are modelled as a 90 second cycle with 50 seconds of green for the corridor, which lets these streets carry the counted cars. Lights closer than 60 m are one junction.",
+        "counter": bike[1],
         "notes": {
             "cars": (
-                "The boulevard counters do not sit on Via Emilia. Weekday 08:00–09:00 peak direction on "
+                f"The boulevard counters do not sit on Via Emilia. Weekdays of {year}, 08:00–09:00 peak direction on "
                 + ", ".join(sites)
                 + f". The corridor uses their median, {car_per_hour} veh/h. Source: Comune di Bologna, traffico-viali."
             ),
             "bikes": (
-                f"Counter {bike_choice[1]} on 23 Sep 2026, 08:00–09:00 local, peak direction {bike_per_hour} bikes/h, {bike_choice[0]:.0f} m from the corridor."
-                if bike_choice else "No bicycle counter returned for that morning."
+                f"Counter {bike[1]} on {day_label(day)}, 08:00–09:00 local, peak direction {bike_per_hour} bikes/h, "
+                f"{bike[0]:.0f} m from the corridor."
             ),
-            "buses": bus_note + (f". Lines: {', '.join(bus_lines)}." if bus_lines else "."),
-            "signals": f"{len(signals)} OSM traffic signals snapped onto the car routes. {signal_phrase(protected)}",
+            "buses": f"{source}, {day_label(day)}, 08:00–09:00 at {bus['stop']}. Lines: {', '.join(bus_lines)}.",
         },
     }
-    OUT.parent.mkdir(parents=True, exist_ok=True)
-    OUT.write_text(json.dumps(supply))
-    print("wrote", OUT)
 
 
 def signal_phrase(protected):

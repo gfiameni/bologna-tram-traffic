@@ -52,11 +52,19 @@ const hours = corridor.hours.map((slot) => slot.label?.split(" · ")[1]).filter(
 check("every hour label has a translation", hours.every((key) => en.has(key) && it.has(key)));
 const roads = JSON.parse(read("../public/roads.json"));
 const lines = JSON.parse(read("../public/lines.json"));
+const air = JSON.parse(read("../public/air.json"));
+const english = /\b(the|of|on|from|at)\b/;
 for (const [name, text] of [
   ["roads", roads.note],
+  ["2026 roads", roads.noteAfter],
   ["lines", lines.note],
   ["signal timing", corridor.supply.signalTiming],
-  ["car counts", corridor.supply.notes.cars],
+  ...Object.entries(air.notes).map(([view, text]) => [`${view} air`, text]),
+  ...["cars", "bikes", "buses"].flatMap((kind) => [
+    [`2024 ${kind}`, corridor.supply.notes[kind]],
+    [`2026 ${kind}`, corridor.supply.after.notes[kind]],
+  ]),
 ]) {
-  check(`the ${name} note has an Italian version`, noteText("it", text) !== text);
+  const italian = noteText("it", text);
+  check(`the ${name} note has an Italian version`, italian !== text && !english.test(italian));
 }

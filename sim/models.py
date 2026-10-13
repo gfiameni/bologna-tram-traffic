@@ -11,7 +11,9 @@ MODELS = {
 }
 
 
-def run(name, corridor, scenario, shift, headway, use_warp=False, hour=8, design=None):
+def run(name, corridor, scenario, shift, headway, use_warp=False, hour=8, design=None, year=None):
+    """`year` picks the measured demand ("before" 2024, "after" 2026); it follows the scenario by default."""
+    corridor = corridor.for_year(year or scenario)
     design = merge(design)
     if name == "bpr":
         return bpr.run(corridor, scenario, shift, headway, hour=hour, design=design)

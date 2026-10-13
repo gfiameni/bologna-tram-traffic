@@ -1,7 +1,7 @@
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "./style.css";
-import { LANGS, tr, count, hourText, noteText, locale } from "./i18n.js";
+import { LANGS, tr, count, hourText, joinNames, noteText, locale } from "./i18n.js";
 import { ANIMATION, prepare } from "./geometry.js";
 import { createTraffic } from "./traffic.js";
 import { HEAT_MEASURES, createRoadHeat } from "./heatmap.js";
@@ -12,11 +12,12 @@ import {
   junctionCount,
   loadCorridor,
   merge,
+  runModel,
   runPair,
   signalPlan,
   streetLayout,
 } from "./sim/index.js";
-import { loadRoads, runCity } from "./roads.js";
+import { loadRoads, runCity, sideMeasured } from "./roads.js";
 import {
   PIECE_ORDER,
   areaSummaries,
@@ -30,7 +31,7 @@ import {
   searchBestSetup,
 } from "./impacts.js";
 import { downloadReport, reportHtml } from "./report.js";
-import { stationSummary } from "./air.js";
+import { readingText, stationReading, stationSummary } from "./air.js";
 import { queueChange, queueDiameter } from "./queue.js";
 import { airBand, measureDiameter, spreadBoxes, tipSide } from "./measures.js";
 import { BUBBLE_LIMIT, bubbleDiameter, changeTone, placeBubbles, rankStretches, streetStretches } from "./bubbles.js";
@@ -101,6 +102,12 @@ async function main() {
   const signedPct = (before, after) => `${signed(percent(before, after))}%`;
   const signedDb = (before, after) => `${signed(decibels(before, after), 1)} dB`;
   const streetName = (name) => t(`street.${name}`);
+  const years = corridorData.years || { before: 2024, after: 2026 };
+  const yearText = (view = state.view) => (view === "compare" ? `${years.before} → ${years.after}` : String(years[scenarioOf(view)]));
+  const dayMonth = (monthDay) => {
+    const [month, day] = monthDay.split("-").map(Number);
+    return new Date(Date.UTC(2000, month - 1, day)).toLocaleDateString(locale(state.lang), { day: "numeric", month: "long", timeZone: "UTC" });
+  };
   const element = (id) => document.getElementById(id);
   const setText = (id, text) => {
     element(id).textContent = text;
@@ -125,8 +132,11 @@ async function main() {
 
   function compute() {
     const rossaOpen = state.lines.includes("rossa");
-    const raw = runPair(state.model, corridor, { shift: state.shift, headway: state.headway, hour: state.hour, design: state.design });
-    const pair = rossaOpen ? raw : { before: raw.before, after: raw.before };
+    const setup = { shift: state.shift, headway: state.headway, hour: state.hour, design: state.design };
+    const raw = runPair(state.model, corridor, setup);
+    const pair = rossaOpen
+      ? raw
+      : { before: raw.before, after: runModel(state.model, corridor, "before", state.shift, state.headway, { ...setup, year: "after" }) };
     const out = { raw, pair, rossaOpen };
     if (city) {
       const options = {
@@ -136,11 +146,10 @@ async function main() {
         extraShift: linesPlan?.extraShift || {},
         headway: state.headway,
         priority: state.design.priority,
-        corridor: raw,
-        buses: hourRow(corridor, state.hour).buses,
+        corridor: pair,
       };
-      out.cityBefore = runCity(city, { ...options, scenario: "before" });
-      out.cityAfter = runCity(city, { ...options, scenario: "after" });
+      out.cityBefore = runCity(city, { ...options, scenario: "before", buses: hourRow(corridor, state.hour, "before").buses });
+      out.cityAfter = runCity(city, { ...options, scenario: "after", buses: hourRow(corridor, state.hour, "after").buses });
       out.impacts = modeImpacts({
         pair,
         corridor,
@@ -303,7 +312,12 @@ async function main() {
     const before = result.cityBefore.roads[road.id];
     const after = result.cityAfter.roads[road.id];
     const name = road.name || t("road.unnamed");
-    const source = road.piece ? t("road.model", { street: streetName(road.piece) }) : road.measured.some(Boolean) ? t("road.measured") : t("road.estimated");
+    const counted = (state.view === "compare" ? ["before", "after"] : [scenarioOf()])
+      .filter((scenario) => [0, 1].some((side) => sideMeasured(road, side, scenario)))
+      .map((scenario) => String(years[scenario]));
+    const source = road.piece
+      ? t("road.model", { street: streetName(road.piece) })
+      : counted.length ? t("road.measured", { years: joinNames(state.lang, counted) }) : t("road.estimated");
     const lines = [];
     if (state.view === "compare") {
       lines.push(t("road.compare", {
@@ -519,7 +533,7 @@ async function main() {
         const anchor = id === "parallel" ? summary.anchor : city.anchors[id];
         if (!anchor) continue;
         const rows = measures.map((measure) => areaRow(measure, summary));
-        const name = t(`place.${id}`);
+        const name = t(id === "rossa" && state.view === "before" ? "place.corridor" : `place.${id}`);
         const label = `${name}: ${rows.map((row) => row.text).join(", ")}`;
         items.push({
           anchor,
@@ -530,15 +544,17 @@ async function main() {
       }
     }
     if (state.layers.air) {
-      const scale = Math.max(30, ...(airData?.stations || []).map((station) => station.no2));
-      for (const station of airData?.stations || []) {
-        const size = measureDiameter(station.no2, scale, 34, 22);
-        const label = `${station.name}: ${stationSummary(station, state.lang)}`;
+      const stations = airData?.stations || [];
+      const scale = Math.max(30, ...stations.flatMap((station) => [station.no2, stationReading(station, "after").no2]));
+      for (const station of stations) {
+        const no2 = stationReading(station, scenarioOf()).no2;
+        const size = measureDiameter(no2, scale, 34, 22);
+        const label = `${station.name}: ${stationSummary(station, state.lang, state.view)}`;
         items.push({
           anchor: station,
           w: Math.max(station.name.length * 6.6 + 16, size + 8),
           h: size + 26,
-          html: `<div class="station-label" role="img" aria-label="${label}"><span class="area-name">${station.name}</span><span class="measure-bubble ${airBand(station.no2)}" style="--measure-size:${size}px"><strong>${station.no2}</strong><small>NO2</small></span></div>`,
+          html: `<div class="station-label" role="img" aria-label="${label}"><span class="area-name">${station.name}</span><span class="measure-bubble ${airBand(no2)}" style="--measure-size:${size}px"><strong>${readingText(station, "no2", state.view)}</strong><small>NO2</small></span></div>`,
         });
       }
     }
@@ -628,6 +644,7 @@ async function main() {
     element("heat-key").hidden = !(state.mapView === "heat" && measure && state.view !== "compare");
     if (measure) element("heat-title").textContent = t(`impact.${measure}`);
     element("sensor-key").hidden = !(numbers && state.layers.air && airData?.stations?.length);
+    element("legend-tram").hidden = state.view === "before";
   }
 
   function paintSwitches() {
@@ -676,20 +693,21 @@ async function main() {
     select.value = state.street;
     element("width").value = String(street.width);
     setText("width-value", `${decimal(Number(street.width))} m`);
-    const today = streetLayout(piece, "before", street);
+    const baseline = streetLayout(piece, "before", street);
     const after = streetLayout(piece, "after", street);
     for (const button of element("direction").querySelectorAll("button")) {
       const oneWay = button.dataset.way === "one";
       button.setAttribute("aria-pressed", String(oneWay === Boolean(street.oneWay || after.forced)));
       button.disabled = Boolean(after.forced) && !oneWay;
     }
+    const baselineText = t("lanes.today", { text: laneCount(baseline.lanes, false) });
     const afterLanes = laneCount(after.lanes, after.oneWay);
     const afterText = !piece.affected
       ? t("lanes.noTracks", { text: afterLanes })
       : after.forced
         ? t("lanes.forced", { text: afterLanes })
         : t("lanes.withTracks", { text: afterLanes });
-    setText("lanes-note", `${t("lanes.today", { text: laneCount(today.lanes, false) })} ${afterText}`);
+    setText("lanes-note", state.view === "before" ? baselineText : `${baselineText} ${afterText}`);
     const cycle = element("cycle");
     const green = element("green");
     cycle.value = String(street.cycle);
@@ -717,6 +735,8 @@ async function main() {
   }
 
   function paintControls() {
+    const tram = state.view !== "before";
+    for (const input of document.querySelectorAll("#tram-lines input, #tram-service input, #tram-service button")) input.disabled = !tram;
     for (const input of document.querySelectorAll("#lines input")) input.checked = state.lines.includes(input.value);
     element("shift").value = String(Math.round(state.shift * 100));
     setText("shift-value", `${Math.round(state.shift * 100)}%`);
@@ -742,6 +762,9 @@ async function main() {
   function paintCards() {
     const compare = state.view === "compare";
     const after = state.view !== "before";
+    const transitLabel = t(after ? "mode.transit" : "mode.buses");
+    for (const node of document.querySelectorAll('[data-i18n="mode.transit"]')) node.textContent = transitLabel;
+    for (const node of document.querySelectorAll('[data-i18n="mode.route"]')) node.textContent = t(after ? "mode.route" : "mode.corridor");
     const { before: b, after: a } = result.pair;
     const record = pickRecord();
     const impacts = result.impacts;
@@ -750,11 +773,12 @@ async function main() {
     setText("traffic-cars", compare
       ? t("cars.reachCompare", { before: n(b.carFlow), after: n(a.carFlow) })
       : t("cars.reach", { n: n(record.carFlow) }));
-    const buses = hourRow(corridor, state.hour).buses;
+    const buses = hourRow(corridor, state.hour, "before").buses;
+    const busesAfter = hourRow(corridor, state.hour, "after").buses;
     const trams = 60 / state.headway;
     setText("traffic-transit", compare
-      ? rossa ? t("transit.busesToTrams", { buses: n(buses), trams: decimal(trams) }) : t("transit.buses", { n: n(buses) })
-      : after && rossa ? t("transit.trams", { n: decimal(trams) }) : t("transit.buses", { n: n(buses) }));
+      ? rossa ? t("transit.busesToTrams", { buses: n(buses), trams: decimal(trams) }) : t("transit.busesCompare", { before: n(buses), after: n(busesAfter) })
+      : after && rossa ? t("transit.trams", { n: decimal(trams) }) : t("transit.buses", { n: n(after ? busesAfter : buses) }));
     setText("traffic-bikes", compare
       ? t("bikes.flowCompare", { before: n(b.bikeFlow), after: n(a.bikeFlow) })
       : t("bikes.flow", { n: n(record.bikeFlow) }));
@@ -820,21 +844,26 @@ async function main() {
       } else {
         const i = after ? 1 : 0;
         const whole = Math.max(1e-9, noise.corridor[i]);
-        setText("noise-route", t("noise.split", {
+        const parts = {
           cars: share(noise.cars[i] / whole),
           buses: share(noise.buses[i] / whole),
           trams: share(noise.trams[i] / whole),
-        }));
-        setText("noise-parallel", after && parallel
+        };
+        setText("noise-route", t(after ? "noise.split" : "noise.busesOnly", parts));
+        setText("noise-parallel", !after ? "" : parallel
           ? t("noise.parallelKm", { km: decimal(parallel.after.km) })
           : t("noise.noParallel"));
         const loudest = city ? loudestRoad(after ? result.cityAfter : result.cityBefore) : null;
         setText("noise-city", loudest ? t("noise.loudest", { street: loudest }) : "");
       }
     }
-    setText("air-measured", t("air.measured", {
-      readings: (airData?.stations || []).map((station) => `${station.name} ${station.no2}`).join(" · "),
-    }));
+    if (airData?.stations?.length) {
+      const readings = airData.stations.map((station) => `${station.name} ${readingText(station, "no2", state.view)}`).join(" · ");
+      const measured = t("air.measured", { from: dayMonth("01-01"), to: dayMonth(airData.through || "12-31"), year: yearText(), readings });
+      setText("air-measured", after ? `${measured}. ${t("air.beforeTram")}` : measured);
+    } else {
+      setText("air-measured", "");
+    }
 
     setText("trip-car", compare
       ? t("trip.carCompare", { fb: minutes(b.carFieraMin), fa: minutes(a.carFieraMin), ab: minutes(b.carPilastroMin), aa: minutes(a.carPilastroMin) })
@@ -872,13 +901,17 @@ async function main() {
     if (!result.impacts) return;
     const { before, after } = result.impacts.streets;
     const compare = state.view === "compare";
-    const rows = state.view === "before" ? before : after;
+    const editable = state.view !== "before";
+    const rows = editable ? after : before;
+    for (const node of document.querySelectorAll('[data-i18n="streets.note"]')) node.textContent = t(editable ? "streets.note" : "streets.noteBefore");
     body.replaceChildren(...rows.map((row) => {
       const prior = before.find((item) => item.name === row.name);
       const tr = document.createElement("tr");
-      tr.dataset.street = row.name;
-      tr.tabIndex = 0;
-      tr.classList.toggle("selected", row.name === state.street);
+      if (editable) {
+        tr.dataset.street = row.name;
+        tr.tabIndex = 0;
+        tr.classList.toggle("selected", row.name === state.street);
+      }
       const lanes = laneCount(row.lanes, row.oneWay);
       const load = compare ? `${share(prior.ratio)} → ${share(row.ratio)}` : share(row.ratio);
       const level = compare ? `${levelBadge(prior.los)}→${levelBadge(row.los)}` : levelBadge(row.los);
@@ -922,7 +955,7 @@ async function main() {
       return item;
     }));
     document.querySelector("#city-roads h3").textContent = t(state.view === "compare" ? "changed.title" : "changed.titleBusiest");
-    setText("roads-source", noteText(state.lang, city.note));
+    setText("roads-source", roadNotes().map((text) => noteText(state.lang, text)).join(" "));
   }
 
   function paintNumbers() {
@@ -950,29 +983,48 @@ async function main() {
     }
   }
 
+  /** The scenarios the current view shows: one, or both in Compare. */
+  function shownScenarios() {
+    return state.view === "compare" ? ["before", "after"] : [scenarioOf()];
+  }
+
+  function corridorNotes() {
+    const supply = corridorData.supply;
+    return shownScenarios().flatMap((scenario) => {
+      const notes = (scenario === "after" && supply.after?.notes) || supply.notes;
+      return [notes.cars, notes.bikes, notes.buses];
+    });
+  }
+
+  function roadNotes() {
+    if (!city) return [];
+    return shownScenarios().map((scenario) => (scenario === "after" ? city.noteAfter : city.note));
+  }
+
   function assumptionText() {
     const supply = corridorData.supply;
     const note = (text) => noteText(state.lang, text);
     return [
-      note(supply.notes.cars),
-      note(supply.notes.bikes),
-      note(supply.notes.buses),
+      ...corridorNotes().map(note),
       note(supply.signalTiming),
       t("assume.surrogate", { mae: decimal(corridorData.surrogate.holdoutMinutesMae, 2) }),
       t("assume.browser"),
-      t("assume.scenario"),
+      ...(state.view === "before" ? [] : [t("assume.scenario"), note(linesPlan?.note)]),
       t("assume.city"),
-      note(city?.note),
-      note(linesPlan?.note),
-      note(airData?.note),
+      ...roadNotes().map(note),
+      note(airData?.notes?.[state.view] ?? airData?.note),
     ].filter(Boolean).join(" ");
   }
 
   function paintPanel() {
     document.body.classList.remove("view-before", "view-after", "view-compare");
     document.body.classList.add(`view-${state.view}`);
+    const before = state.view === "before";
+    document.title = t(before ? "page.titleBefore" : "page.title");
+    for (const node of document.querySelectorAll('[data-i18n="page.heading"]')) node.textContent = t(before ? "page.headingBefore" : "page.heading");
+    for (const node of document.querySelectorAll('[data-i18n="page.lede"]')) node.textContent = t(before ? "page.ledeBefore" : "page.lede");
     setText("map-caption", t(`caption.${state.view}`));
-    setText("when", `Bologna · ${hourLabel(state.hour)}`);
+    setText("when", `Bologna · ${yearText()} · ${hourLabel(state.hour)}`);
     for (const view of ["before", "after", "compare"]) element(`show-${view}`).setAttribute("aria-pressed", String(state.view === view));
     paintControls();
     paintCards();
@@ -1186,10 +1238,12 @@ async function main() {
   element("export-report").addEventListener("click", () => busy(async () => {
     const found = state.search?.key === searchKey() ? state.search.found : await runSearch();
     const slot = corridor.hours.find((item) => Number(item.hour) === Number(state.hour));
+    const supply = corridorData.supply;
     const html = reportHtml({
       modelLabel: tr("en", `model.${state.model}`),
       hourLabel: slot?.label || hourLabel(state.hour),
-      hourSlot: slot,
+      hourSlots: { before: hourRow(corridor, state.hour, "before"), after: hourRow(corridor, state.hour, "after") },
+      years,
       setup: {
         shift: state.shift,
         headway: state.headway,
@@ -1200,13 +1254,13 @@ async function main() {
       found,
       streetName: (name) => tr("en", `street.${name}`),
       notes: [
-        corridorData.supply.notes.cars,
-        corridorData.supply.notes.bikes,
-        corridorData.supply.notes.buses,
-        corridorData.supply.signalTiming,
+        ...[supply.notes, supply.after?.notes].filter(Boolean).flatMap((notes) => [notes.cars, notes.bikes, notes.buses]),
+        supply.signalTiming,
         tr("en", "assume.scenario"),
         tr("en", "assume.city"),
         city?.note,
+        city?.noteAfter,
+        airData?.note,
       ],
       generatedAt: new Date().toLocaleString("en-GB", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Rome" }),
     });
@@ -1400,7 +1454,7 @@ async function main() {
     const size = map.getSize();
     L.DomUtil.setPosition(canvas, map.containerPointToLayerPoint([0, 0]));
     ctx.clearRect(0, 0, size.x, size.y);
-    const vehicles = traffic.vehicles(scenarioOf());
+    const vehicles = state.view === "before" ? [] : traffic.vehicles(scenarioOf());
     const zoom = map.getZoom();
     const scale = Math.max(0.45, Math.min(1, 2 ** (zoom - 15)));
     const carStride = zoom >= 15 ? 1 : zoom >= 14 ? 3 : 10;
