@@ -160,6 +160,26 @@ Before always keeps the baseline lights. A light plan you set, or the optimiser 
 
 ![The same inputs feed the four models, which give the same outputs; the city's main roads use the result](models.png)
 
+#### How each model sees a street
+
+The four figures show one street through each model. Their numbers are worked examples from each model's own settings, not results for the corridor.
+
+**Cell transmission** cuts each street into cells of 50 m. Every second, each cell passes on the smaller of what it can send and what the next cell has room for, up to 1,800 cars an hour per lane. A red light stops the cell in front of it, so the queue fills the cells behind and grows backwards at 18 km/h. A full cell holds 6.5 cars per lane. A street carries at most what its lights let through, and the cars that do not fit wait in the queue.
+
+![A street in cells of 50 m: cars in free flow at 30 km/h, then three full cells queued behind a red light, and the rule at each boundary that the smaller of send and room moves](model-cell-transmission.png)
+
+**Volume-delay** has no queue. The fuller the street, the longer the trip: the free-flow time times 1 + 0.8 × load², plus the Webster wait at each light. Every car gets through, even above capacity, so crowding shows as a longer trip. On a 1 km street with two lights and room for 1,000 cars an hour, the trip takes 2.8 min with 500 cars an hour, 4.2 min with 1,000, and 6.2 min with 1,500.
+
+![Trip time on a 1 km street with two lights for 500, 1,000, and 1,500 cars an hour: 2.8, 4.2, and 6.2 min, split into driving and waiting at lights, with every car getting through](model-volume-delay.png)
+
+**Car following** moves each car, bus, and bicycle on its own. Each vehicle speeds up towards 30 km/h and brakes to keep the gap it wants: 2 m plus the distance it covers in 1.2 s, plus a margin while it closes in. A car at 18 km/h with 15 m to a stopped queue wants 16 m, so it brakes. A bus dwells 18 s at each stop: on one lane the cars behind it wait, on two lanes they pass. Bicycles ride on their own track where the cycle lane is protected, and in the lane otherwise. The model drives the first 2.5 km of each street.
+
+![One lane drawn to scale: a car at 30 km/h, a car waiting behind a bus at a stop, a car at 18 km/h braking with a 15 m gap, three cars stopped 2 m apart at a red light, and bicycles at 19 km/h on a cycle track](model-car-following.png)
+
+**Neural surrogate** is a small network that learned cell transmission. It was trained on 525 cell-transmission runs: the five streets with one, two, and three lanes, seven light plans, and five demand levels. Ten inputs about a street feed 16 neurons, which give the minutes on the street and the share of cars that get through. On runs kept out of training it is within 0.62 min per street on average. It answers at once and holds inside the range it learned.
+
+![Ten street inputs, from cars to green wave, connected to 16 neurons and two outputs: minutes on the street and the share that gets through; held-out error 0.62 min](model-neural-surrogate.png)
+
 ### Predict best setup
 
 **Predict best setup** searches for the tram setup that loses the fewest person-minutes an hour, with the selected model at the selected hour. It tries a tram every 3 to 8 minutes, with and without priority, with the streets as set or one-way where the tracks run, then optimises the winner's lights. The best setup goes onto the map in After, and the note sums it up, for example: *a tram every 6.5 min, no priority at the lights, streets as set, optimised lights; 3,064 people an hour pass Porta San Felice, 0 wait for a later tram, and the car trip from Emilio Lepido to the Fiera is 14 min shorter.*
