@@ -19,6 +19,11 @@ function kmh(piece) {
   return (piece.lengthM / Math.max(1, piece.carMin * 60)) * 3.6;
 }
 
+/** Cars an hour that queue on a street: what each stretch cannot pass on. */
+function queueOf(piece) {
+  return piece.stretches.reduce((sum, part) => sum + Math.max(0, part.carIn - Math.min(part.carOut, part.capacity)), 0);
+}
+
 /** Lanes, load, level of service and queue on each street of the car route. */
 export function streetRows(record) {
   return PIECE_ORDER.filter((name) => record?.pieces?.[name]).map((name) => {
@@ -37,7 +42,7 @@ export function streetRows(record) {
       ratio,
       delay,
       los: losFromDelay(delay, ratio),
-      queue: Math.max(0, piece.carIn - Math.min(piece.carOut, piece.capacity)),
+      queue: queueOf(piece),
       diverted: piece.oneWay ? piece.carIn * COUNTER_SHARE : 0,
       kmh: kmh(piece),
       carIn: piece.carIn,
@@ -46,21 +51,26 @@ export function streetRows(record) {
   });
 }
 
-/** Exhaust and noise along the car route, split by mode. Trams add noise and no exhaust. */
+/**
+ * Exhaust and noise along the car route, split by mode. Trams add noise and no exhaust.
+ * `buses` run where there are no tracks, and never on the bypass; `trams` run on the tracks.
+ */
 export function corridorEnvironment(record, { buses = 0, trams = 0 } = {}) {
   const out = { carExhaust: 0, busExhaust: 0, carNoise: 0, busNoise: 0, tramNoise: 0, length: 0 };
   for (const name of PIECE_ORDER) {
     const piece = record?.pieces?.[name];
     if (!piece) continue;
-    const km = piece.lengthM / 1000;
-    const onLine = name !== "bypass";
-    const bus = onLine ? buses * pieceShare(name) : 0;
-    const tram = onLine ? trams : 0;
-    out.carExhaust += piece.carIn * speedFactor(kmh(piece)) * km;
-    out.busExhaust += bus * BUS_EXHAUST * km;
-    out.carNoise += piece.carIn * NOISE_WEIGHT.car * piece.lengthM;
-    out.busNoise += bus * NOISE_WEIGHT.bus * piece.lengthM;
-    out.tramNoise += tram * NOISE_WEIGHT.tram * piece.lengthM;
+    for (const part of piece.stretches) {
+      const metres = part.to - part.from;
+      const speed = speedFactor((metres / Math.max(1, part.carMin * 60)) * 3.6);
+      const bus = name !== "bypass" && !part.tram ? buses * pieceShare(name) : 0;
+      const tram = part.tram ? trams : 0;
+      out.carExhaust += part.carIn * speed * (metres / 1000);
+      out.busExhaust += bus * BUS_EXHAUST * (metres / 1000);
+      out.carNoise += part.carIn * NOISE_WEIGHT.car * metres;
+      out.busNoise += bus * NOISE_WEIGHT.bus * metres;
+      out.tramNoise += tram * NOISE_WEIGHT.tram * metres;
+    }
     out.length += piece.lengthM;
   }
   const per = (value) => value / Math.max(1, out.length);
@@ -93,7 +103,7 @@ export function roadAreas(road) {
   if (/^Viale /.test(road.name) && distance > 750 && distance < 1600) areas.push("viali");
   else if (distance < 950) areas.push("centre");
   for (const line of road.tram) areas.push(line);
-  if (road.piece && road.piece !== "bypass" && !areas.includes("rossa")) areas.push("rossa");
+  if (road.tracks && !areas.includes("rossa")) areas.push("rossa");
   if (road.piece === "bypass") areas.push("bypass");
   return areas;
 }
@@ -190,9 +200,10 @@ export function modeImpacts({ pair, corridor, hour, headway, rossaOpen, city, ci
   const after = pair.after;
   const before = pair.before;
   const trams = rossaOpen ? tramPassages(headway) : 0;
-  const busesAfter = rossaOpen ? 0 : hourRow(corridor, hour, "after").buses;
+  const busesLater = hourRow(corridor, hour, "after").buses;
+  const busesAfter = rossaOpen ? 0 : busesLater;
   const envBefore = corridorEnvironment(before, { buses: busesBefore, trams: 0 });
-  const envAfter = corridorEnvironment(after, { buses: busesAfter, trams });
+  const envAfter = corridorEnvironment(after, { buses: busesLater, trams });
   const streetsBefore = streetRows(before);
   const streetsAfter = streetRows(after);
   const queue = (rows) => rows.find((row) => row.name === "trunk")?.queue ?? 0;
@@ -261,9 +272,8 @@ export function minutesLost(record, corridor) {
   for (const name of PIECE_ORDER) {
     const piece = record.pieces?.[name];
     if (!piece) continue;
-    const queue = Math.max(0, piece.carIn - Math.min(piece.carOut, piece.capacity));
     lost += occupancy * demand * pieceShare(name) * Math.max(0, piece.carMin - piece.freeMin);
-    lost += occupancy * QUEUE_MINUTES * queue;
+    lost += occupancy * QUEUE_MINUTES * queueOf(piece);
     lost += occupancy * piece.junctions * crossMinutes(piece.cycle, piece.green);
   }
   const carried = Math.max(0, record.peoplePerHour - record.carFlow * occupancy - record.bikeFlow);

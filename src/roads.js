@@ -5,10 +5,11 @@
  * 2026 in After), or the count it borrows from the same street or its road class. Capacity
  * is lanes × 1,800 cars an hour × the share of green, or the busiest hour either year
  * measured. On an open tram line a road gives one lane to the tracks (a road
- * with one lane each way shares it with the tram), loses the drivers who switch, and, with
- * priority, loses the green the trams take. Cars that no longer fit move to parallel roads
- * within 1.2 km. Roads on the Linea Rossa car route take their numbers from the selected
- * corridor model, so the map and the panel agree.
+ * with one lane each way shares it with the tram, and a road where the tram has its own
+ * track keeps its lanes), loses the drivers who switch, and, with priority, loses the green
+ * the trams take. Cars that no longer fit move to parallel roads within 1.2 km. Roads on the
+ * Linea Rossa car route take their numbers from the stretch of the selected corridor model
+ * they sit on, so the map and the panel agree.
  */
 import { COUNTER_SHARE, MAX_GREEN_LOST, SATURATION_PER_LANE, TRAM_HOLD_S, tramPassages } from "./sim/design.js";
 
@@ -63,6 +64,9 @@ export function loadRoads(data) {
     measuredAfter: sides(column.measuredAfter?.[i] ?? column.measured[i]),
     tram: data.lines.filter((_, k) => column.tram[i] & (1 << k)),
     piece: column.piece[i] >= 0 ? data.pieces[column.piece[i]] : null,
+    at: column.at[i],
+    tracks: Boolean(column.tracks[i]),
+    ownTrack: Boolean(column.ownTrack[i]),
     tramBins: column.tramBins[i],
     spill: column.spill[i],
   }));
@@ -136,7 +140,10 @@ export function priorityLoss(greenShare, headway) {
 function corridorPiece(road, corridor, scenario) {
   if (!corridor) return null;
   const record = scenario === "after" ? corridor.after : corridor.before;
-  return record?.pieces?.[road.piece] ? { record, report: record.pieces[road.piece] } : null;
+  const report = record?.pieces?.[road.piece];
+  if (!report) return null;
+  const stretch = report.stretches.find((item) => road.at < item.to) ?? report.stretches[report.stretches.length - 1];
+  return { record, report, stretch };
 }
 
 /**
@@ -166,8 +173,7 @@ export function runCity(city, {
   const covered = new Float64Array(city.binLine.length);
   const roads = city.roads.map((road) => {
     const open = road.tram.filter((id) => active.has(id));
-    const rossaStreet = road.piece && road.piece !== "bypass";
-    if (rossaStreet && rossaOpen && !open.includes("rossa")) open.push("rossa");
+    if (road.tracks && rossaOpen && !open.includes("rossa")) open.push("rossa");
     const state = {
       id: road.id, open, flow: [0, 0], ratio: [0, 0], lanes: [0, 0], capacity: [0, 0],
       extra: 0, blocked: 0, diverted: 0, buses: 0, trams: 0,
@@ -181,22 +187,23 @@ export function runCity(city, {
     };
     const piece = road.piece ? corridorPiece(road, corridor, scenario) : null;
     if (piece) {
-      const { report } = piece;
-      const ratio = report.pceIn / Math.max(1, report.capacity);
-      const delay = ((report.carMin - report.freeMin) * 60) / Math.max(1, report.junctions);
+      const { report, stretch } = piece;
+      const ratio = stretch.pceIn / Math.max(1, stretch.capacity);
+      const delay = ((stretch.carMin - stretch.freeMin) * 60) / Math.max(1, stretch.junctions);
       const twoWay = !road.oneWay && !report.oneWay;
+      const onTracks = after && rossaOpen && road.tracks;
       state.model = true;
-      state.flow = [report.carIn, twoWay ? report.carIn * COUNTER_SHARE : 0];
+      state.flow = [stretch.carIn, twoWay ? stretch.carIn * COUNTER_SHARE : 0];
       state.ratio = [ratio, twoWay ? ratio * COUNTER_SHARE : 0];
-      state.lanes = [report.lanes, twoWay ? report.lanes : 0];
-      state.capacity = [report.capacity, twoWay ? report.capacity : 0];
+      state.lanes = [stretch.lanes, twoWay ? stretch.lanes : 0];
+      state.capacity = [stretch.capacity, twoWay ? stretch.capacity : 0];
       state.los = losFromDelay(delay, ratio);
-      state.speed = (report.lengthM / Math.max(1, report.carMin * 60)) * 3.6;
-      state.buses = road.piece === "bypass" || (after && rossaOpen) ? 0 : buses;
-      state.trams = rossaStreet && after && rossaOpen ? trams : 0;
-      if (after && rossaOpen && rossaStreet) {
-        state.blocked = Math.max(0, report.carIn - Math.min(report.carOut, report.capacity));
-        state.diverted = report.oneWay ? report.carIn * COUNTER_SHARE : 0;
+      state.speed = ((stretch.to - stretch.from) / Math.max(1, stretch.carMin * 60)) * 3.6;
+      state.buses = road.piece === "bypass" || onTracks ? 0 : buses;
+      state.trams = onTracks ? trams : 0;
+      if (after && rossaOpen && report.stretches.some((item) => item.tram)) {
+        state.blocked = Math.max(0, stretch.carIn - Math.min(stretch.carOut, stretch.capacity));
+        state.diverted = report.oneWay ? stretch.carIn * COUNTER_SHARE : 0;
         spread(state.blocked + state.diverted);
       }
       return state;
@@ -213,8 +220,10 @@ export function runCity(city, {
       let carLanes = lanes;
       if (open.length) {
         demand *= 1 - lineShift;
-        if (lanes >= 2) carLanes = lanes - 1;
-        else perLane *= SHARED_LANE;
+        if (!road.ownTrack) {
+          if (lanes >= 2) carLanes = lanes - 1;
+          else perLane *= SHARED_LANE;
+        }
         if (priority && road.signals > 0) perLane *= 1 - priorityLoss(GREEN_SHARE[road.kind] ?? 0.5, headway);
       }
       const capacity = carLanes * perLane;

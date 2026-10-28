@@ -9,13 +9,15 @@ import {
   CROSS_MIN_S,
   defaultDesign,
   hourRow,
-  junctionCount,
   loadCorridor,
   merge,
+  partLayouts,
+  parts,
   runModel,
   runPair,
   signalPlan,
   streetLayout,
+  tramRedSeconds,
 } from "./sim/index.js";
 import { loadRoads, runCity, sideMeasured } from "./roads.js";
 import {
@@ -694,7 +696,11 @@ async function main() {
     element("width").value = String(street.width);
     setText("width-value", `${decimal(Number(street.width))} m`);
     const baseline = streetLayout(piece, "before", street);
-    const after = streetLayout(piece, "after", street);
+    const items = parts(piece, "after").map((item) => item[2]);
+    const layouts = partLayouts(items, "after", street);
+    const tracked = items.findIndex((item) => item.affected);
+    const free = items.findIndex((item) => !item.affected);
+    const after = layouts[Math.max(0, tracked)];
     for (const button of element("direction").querySelectorAll("button")) {
       const oneWay = button.dataset.way === "one";
       button.setAttribute("aria-pressed", String(oneWay === Boolean(street.oneWay || after.forced)));
@@ -702,11 +708,16 @@ async function main() {
     }
     const baselineText = t("lanes.today", { text: laneCount(baseline.lanes, false) });
     const afterLanes = laneCount(after.lanes, after.oneWay);
-    const afterText = !piece.affected
+    let afterText = !piece.affected
       ? t("lanes.noTracks", { text: afterLanes })
       : after.forced
         ? t("lanes.forced", { text: afterLanes })
         : t("lanes.withTracks", { text: afterLanes });
+    if (piece.affected && free >= 0) {
+      const metres = items.reduce((sum, item) => sum + (item.affected ? item.length : 0), 0);
+      const rest = laneCount(layouts[free].lanes, layouts[free].oneWay);
+      afterText += ` ${t("lanes.part", { m: n(Math.round(metres / 10) * 10), total: n(Math.round(piece.length / 10) * 10), text: rest })}`;
+    }
     setText("lanes-note", state.view === "before" ? baselineText : `${baselineText} ${afterText}`);
     const cycle = element("cycle");
     const green = element("green");
@@ -726,11 +737,7 @@ async function main() {
     const trunk = state.design.streets.trunk;
     const plan = signalPlan(corridor.pieces.trunk, "after", trunk, priority, state.headway);
     if (priority) return t("priority.on", { car: Math.round(plan.carGreen), green: Math.round(plan.green), street: streetName("trunk") });
-    let wait = 0;
-    for (const name of ["trunk", "city", "fiera"]) {
-      const piece = corridor.pieces[name];
-      wait += junctionCount(piece.signals) * signalPlan(piece, "after", state.design.streets[name], false, state.headway).tramWait;
-    }
+    const wait = tramRedSeconds(corridor, "fiera", { ...state.design, priority: false }, state.headway);
     return t("priority.off", { each: Math.round(plan.tramWait), total: decimal(wait / 60) });
   }
 
@@ -821,12 +828,12 @@ async function main() {
       const total = (i) => Math.max(1e-9, air.corridor[i]);
       if (compare) {
         setText("air-cars", t("air.change", { pct: signedPct(air.cars[0], air.cars[1]) }));
-        setText("air-transit", rossa ? t("air.busesGone") : t("air.change", { pct: signedPct(air.buses[0], air.buses[1]) }));
+        setText("air-transit", t(rossa ? "air.busesGone" : "air.change", { pct: signedPct(air.buses[0], air.buses[1]) }));
         setText("air-city", t("air.cityChange", { pct: signedPct(air.city[0], air.city[1]) }));
       } else {
         const i = after ? 1 : 0;
         setText("air-cars", t("air.share", { pct: share(air.cars[i] / total(i)) }));
-        setText("air-transit", after && rossa ? t("air.trams") : t("air.share", { pct: share(air.buses[i] / total(i)) }));
+        setText("air-transit", t(after && rossa ? "air.trams" : "air.share", { pct: share(air.buses[i] / total(i)) }));
         setText("air-city", t("air.cityTotal", { pct: share(air.corridor[i] / Math.max(1e-9, air.city[i])) }));
       }
 

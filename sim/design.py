@@ -4,16 +4,20 @@ Before is the 2024 baseline street: two-way, 90 second cycle, 50 seconds of gree
 coordination between junctions. That plan lets the baseline streets carry the
 counted 1,155 cars an hour at 08:00. After is the tram design the user sets:
 width, direction, cycle, green, green wave, and whether trams get priority.
+The tracks run along part of the bypass and of the Pilastro branch, so After runs those
+streets stretch by stretch.
 """
 
 import math
+from dataclasses import replace
 
 PIECES = ("trunk", "bypass", "city", "fiera", "pilastro")
 LANE_M = 3.25
 TRACK_M = 6.5
 DEFAULT_WIDTH_M = 13.0
-# The bypass runs on the viali, wide enough for three lanes each way.
+# The bypass, wide enough for three lanes each way.
 WIDTH_M = {"bypass": 20.0}
+SNAP_M = 1.0
 SATURATION_PER_LANE = 1800.0
 TODAY_CYCLE_S = 90.0
 TODAY_GREEN_S = 50.0
@@ -105,6 +109,72 @@ def junctions(signals):
 
 def junction_count(signals):
     return len(junctions(signals)[1])
+
+
+def stretches(piece):
+    """(start, end, tracks) from one end of the piece to the other."""
+    cuts = []
+    cursor = 0.0
+    for start, end in piece.tram:
+        start = 0.0 if start <= SNAP_M else max(cursor, start)
+        end = piece.length if end >= piece.length - SNAP_M else min(piece.length, end)
+        if end <= start:
+            continue
+        if start > cursor:
+            cuts.append((cursor, start, False))
+        cuts.append((start, end, True))
+        cursor = end
+    if cursor < piece.length:
+        cuts.append((cursor, piece.length, False))
+    return cuts
+
+
+def cut(piece, start, end, tracks):
+    """One stretch of a piece as a street of its own."""
+    last = end >= piece.length
+
+    def inside(s):
+        return start <= s < end or (last and s == end)
+
+    return replace(
+        piece,
+        length=end - start,
+        affected=tracks,
+        tram=[[0.0, end - start]] if tracks else [],
+        signals=[s - start for s in piece.signals if inside(s)],
+        stops=[s - start for s in piece.stops if inside(s)],
+    )
+
+
+def parts(piece, scenario):
+    """(start, end, stretch) for each stretch a model runs, in order.
+
+    Before, and a street the tracks cover end to end, run as one stretch: the piece itself.
+    """
+    cuts = stretches(piece)
+    if scenario != "after" or len(cuts) <= 1:
+        return [(0.0, piece.length, piece)]
+    return [(start, end, cut(piece, start, end, tracks)) for start, end, tracks in cuts]
+
+
+def part_layouts(items, scenario, street):
+    """Lanes on each stretch. Where the tracks leave too little room for two-way traffic, the whole street runs one-way."""
+    if len(items) == 1:
+        return [street_layout(items[0], scenario, street)]
+    forced = any(street_layout(item, scenario, street)["forced"] for item in items if item.affected)
+    one_way = {**street, "oneWay": bool(street["oneWay"]) or forced}
+    return [{**street_layout(item, scenario, one_way), "forced": forced} for item in items]
+
+
+def tram_red_seconds(corridor, branch, design, headway):
+    """Seconds a tram to `branch` waits at red lights on the car streets it runs along."""
+    total = 0.0
+    for name in ("trunk", "bypass", "city", branch):
+        for _start, _end, item in parts(corridor.piece(name), "after"):
+            if item.affected:
+                plan = signal_plan(item, "after", design["streets"][name], design["priority"], headway)
+                total += junction_count(item.signals) * plan["tramWait"]
+    return total
 
 
 def measure_window(cycle):

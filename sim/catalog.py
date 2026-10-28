@@ -88,6 +88,7 @@ def browser_inputs(corridor, weights):
                 "signals": piece.signals,
                 "stops": piece.stops,
                 "bikeProtected": piece.bike_protected,
+                "tram": piece.tram,
             }
             for name, piece in corridor.pieces.items()
         },

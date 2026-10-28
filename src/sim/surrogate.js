@@ -1,6 +1,6 @@
 /** A small neural net trained on the cell-transmission model. A port of the inference in sim/surrogate.py. */
-import { TODAY_CYCLE_S, TODAY_GREEN_S, layoutsAndPlans } from "./design.js";
-import { demand, finish } from "./engine.js";
+import { TODAY_CYCLE_S, TODAY_GREEN_S } from "./design.js";
+import { busesLeft, demand, finish, runPiece } from "./engine.js";
 
 function features(carH, bikeH, busH, lanes, signals, length, isProtected, plan) {
   return [
@@ -57,15 +57,18 @@ function piece(weights, item, carH, busH, bikeH, layout, plan) {
 export function run(corridor, scenario, shift, headway, hour, design) {
   const weights = corridor.weights;
   const { cars, buses, bikes } = demand(corridor, scenario, shift, hour);
-  const { layouts, plans } = layoutsAndPlans(corridor, scenario, design, headway);
+  const left = busesLeft(corridor, hour);
+  const solve = (item, carH, busH, bikeH, layout, plan) => piece(weights, item, carH, busH, bikeH, layout, plan);
+  const street = (name, car, bus, bike, share = 1) =>
+    runPiece(corridor.pieces[name], scenario, design.streets[name], design.priority, headway, car, bus, bike, left * share, solve);
   const stats = {};
   let upstream = cars;
   for (const name of ["trunk", "bypass", "city"]) {
-    stats[name] = piece(weights, corridor.pieces[name], upstream, buses, bikes, layouts[name], plans[name]);
+    stats[name] = street(name, upstream, buses, bikes);
     upstream = stats[name].car_out;
   }
   for (const [name, share] of [["fiera", 0.56], ["pilastro", 0.44]]) {
-    stats[name] = piece(weights, corridor.pieces[name], upstream * share, buses * share, bikes * share, layouts[name], plans[name]);
+    stats[name] = street(name, upstream * share, buses * share, bikes * share, share);
   }
-  return finish(corridor, scenario, shift, headway, hour, design, stats, layouts, plans, stats.trunk.car_out, stats.trunk.bike_out);
+  return finish(corridor, scenario, shift, headway, hour, design, stats, stats.trunk.car_out, stats.trunk.bike_out);
 }

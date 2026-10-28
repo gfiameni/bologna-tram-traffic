@@ -1,6 +1,6 @@
 /** Cell-transmission model. A port of sim/ctm.py. */
-import { SATURATION_PER_LANE, TODAY, layoutsAndPlans, measureWindow, offsets, pyRound } from "./design.js";
-import { demand, finish } from "./engine.js";
+import { SATURATION_PER_LANE, TODAY, measureWindow, offsets, pyRound } from "./design.js";
+import { busesLeft, demand, finish, runPiece } from "./engine.js";
 
 const DX = 50;
 const DT = 1;
@@ -111,16 +111,18 @@ function piece(item, carH, busH, bikeH, layout, plan) {
 
 export function run(corridor, scenario, shift, headway, hour, design) {
   const { cars, buses, bikes } = demand(corridor, scenario, shift, hour);
-  const { layouts, plans } = layoutsAndPlans(corridor, scenario, design, headway);
+  const left = busesLeft(corridor, hour);
+  const street = (name, car, bus, bike, share = 1) =>
+    runPiece(corridor.pieces[name], scenario, design.streets[name], design.priority, headway, car, bus, bike, left * share, piece);
   const stats = {};
   let upstream = cars;
   for (const name of ["trunk", "bypass", "city"]) {
     const busHere = name !== "bypass" ? buses : 0;
-    stats[name] = piece(corridor.pieces[name], upstream, busHere, name === "trunk" ? bikes : bikes * 0.9, layouts[name], plans[name]);
+    stats[name] = street(name, upstream, busHere, name === "trunk" ? bikes : bikes * 0.9);
     upstream = stats[name].car_out;
   }
   for (const [name, share] of [["fiera", 0.56], ["pilastro", 0.44]]) {
-    stats[name] = piece(corridor.pieces[name], upstream * share, buses * share, bikes * share, layouts[name], plans[name]);
+    stats[name] = street(name, upstream * share, buses * share, bikes * share, share);
   }
-  return finish(corridor, scenario, shift, headway, hour, design, stats, layouts, plans, stats.trunk.car_out, stats.trunk.bike_out);
+  return finish(corridor, scenario, shift, headway, hour, design, stats, stats.trunk.car_out, stats.trunk.bike_out);
 }

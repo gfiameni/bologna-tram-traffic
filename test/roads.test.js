@@ -38,6 +38,12 @@ const verde = city.roads.filter((road) => road.tram.includes("verde") && !road.t
 check("Verde has two-lane streets to test", verde.length > 0);
 check("an open Verde line gives the tracks a lane", verde.every((road) => all.roads[road.id].lanes[0] === road.lanes[0] - 1));
 check("a closed line keeps its lanes", verde.every((road) => rossa.roads[road.id].lanes[0] === road.lanes[0]));
+const ownTrack = city.roads.filter((road) => road.ownTrack);
+check("Via dell'Indipendenza north of Via Irnerio has its own track", ownTrack.some((road) => road.name === "Via dell'Indipendenza"));
+check("an own track leaves the car lane whole", ownTrack.every((road) => all.roads[road.id].lanes[0] === road.lanes[0] && all.roads[road.id].open.includes("rossa")));
+const pastTracks = city.roads.filter((road) => road.piece === "pilastro" && !road.tracks);
+check("Via San Donato past San Donnino-Casalone has no tracks", pastTracks.length > 0 && pastTracks.every((road) => !rossa.roads[road.id].open.includes("rossa") && rossa.roads[road.id].trams === 0));
+check("buses still run past San Donnino-Casalone", pastTracks.every((road) => rossa.roads[road.id].buses > 0));
 check("before the tram no cars are diverted", before.roads.every((state) => state.extra === 0));
 check("diverted cars land on parallel roads", all.roads.some((state) => state.extra > 10));
 const share = (result) => summarise(city, result).congestedShare;

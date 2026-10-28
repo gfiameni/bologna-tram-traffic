@@ -4,6 +4,8 @@
  * Before is the 2024 baseline street: two-way, 90 second cycle, 50 seconds of green, no
  * coordination between junctions. After is the tram design the user sets:
  * width, direction, cycle, green, green wave, and whether trams get priority.
+ * The tracks run along part of the bypass and of the Pilastro branch, so After runs those
+ * streets stretch by stretch.
  */
 
 export const PIECES = ["trunk", "bypass", "city", "fiera", "pilastro"];
@@ -22,6 +24,7 @@ export const WAVE_PROGRESSION = 0.7;
 export const JUNCTION_M = 60;
 export const MEASURE_S = 240;
 export const COUNTER_SHARE = 0.75;
+export const SNAP_M = 1;
 export const TODAY = { cycle: TODAY_CYCLE_S, green: TODAY_GREEN_S, carGreen: TODAY_GREEN_S, wave: false, tramWait: 0 };
 
 /** Python's float modulo: the result takes the sign of the divisor. */
@@ -132,12 +135,60 @@ export function offsets(signals, plan, model) {
   return groups.map((group) => pyMod(group * 17, cycle));
 }
 
-export function layoutsAndPlans(corridor, scenario, design, headway) {
-  const layouts = {};
-  const plans = {};
-  for (const [name, piece] of Object.entries(corridor.pieces)) {
-    layouts[name] = streetLayout(piece, scenario, design.streets[name]);
-    plans[name] = signalPlan(piece, scenario, design.streets[name], design.priority, headway);
+/** [start, end, tracks] from one end of the piece to the other. */
+export function stretches(piece) {
+  const cuts = [];
+  let cursor = 0;
+  for (const span of piece.tram || []) {
+    const start = span[0] <= SNAP_M ? 0 : Math.max(cursor, span[0]);
+    const end = span[1] >= piece.length - SNAP_M ? piece.length : Math.min(piece.length, span[1]);
+    if (end <= start) continue;
+    if (start > cursor) cuts.push([cursor, start, false]);
+    cuts.push([start, end, true]);
+    cursor = end;
   }
-  return { layouts, plans };
+  if (cursor < piece.length) cuts.push([cursor, piece.length, false]);
+  return cuts;
+}
+
+/** One stretch of a piece as a street of its own. */
+export function cut(piece, start, end, tracks) {
+  const last = end >= piece.length;
+  const inside = (s) => (start <= s && s < end) || (last && s === end);
+  return {
+    ...piece,
+    length: end - start,
+    affected: tracks,
+    tram: tracks ? [[0, end - start]] : [],
+    signals: piece.signals.filter(inside).map((s) => s - start),
+    stops: piece.stops.filter(inside).map((s) => s - start),
+  };
+}
+
+/** [start, end, stretch] for each stretch a model runs, in order. Before, and a street the tracks cover end to end, run whole. */
+export function parts(piece, scenario) {
+  const cuts = stretches(piece);
+  if (scenario !== "after" || cuts.length <= 1) return [[0, piece.length, piece]];
+  return cuts.map(([start, end, tracks]) => [start, end, cut(piece, start, end, tracks)]);
+}
+
+/** Lanes on each stretch. Where the tracks leave too little room for two-way traffic, the whole street runs one-way. */
+export function partLayouts(items, scenario, street) {
+  if (items.length === 1) return [streetLayout(items[0], scenario, street)];
+  const forced = items.some((item) => item.affected && streetLayout(item, scenario, street).forced);
+  const oneWay = { ...street, oneWay: Boolean(street.oneWay) || forced };
+  return items.map((item) => ({ ...streetLayout(item, scenario, oneWay), forced }));
+}
+
+/** Seconds a tram to `branch` waits at red lights on the car streets it runs along. */
+export function tramRedSeconds(corridor, branch, design, headway) {
+  let total = 0;
+  for (const name of ["trunk", "bypass", "city", branch]) {
+    for (const [, , item] of parts(corridor.pieces[name], "after")) {
+      if (!item.affected) continue;
+      const plan = signalPlan(item, "after", design.streets[name], design.priority, headway);
+      total += junctionCount(item.signals) * plan.tramWait;
+    }
+  }
+  return total;
 }

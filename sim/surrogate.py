@@ -10,8 +10,8 @@ import json
 import numpy as np
 
 from sim.ctm import _rollout, horizon
-from sim.design import TODAY_CYCLE_S, TODAY_GREEN_S, signal_plan, street_layout
-from sim.engine import bike_trip, bus_trip, chain_time, demand, people_and_transit, piece_report, tram_trip
+from sim.design import TODAY_CYCLE_S, TODAY_GREEN_S, parts
+from sim.engine import bike_trip, buses_left, bus_trip, chain_time, demand, people_and_transit, piece_report, run_piece, tram_trip
 
 HIDDEN = 16
 _WEIGHTS = None
@@ -41,10 +41,21 @@ def _features(car_h, bike_h, bus_h, lanes, signals, length, protected, plan):
     ], dtype=np.float64)
 
 
+def _streets(corridor):
+    """Every piece, then the stretches of the pieces the tracks cover only in part."""
+    items = []
+    for piece in corridor.pieces.values():
+        items.append(piece)
+        cuts = parts(piece, "after")
+        if len(cuts) > 1:
+            items.extend(item for _start, _end, item in cuts)
+    return items
+
+
 def _collect(corridor):
     rows = []
     targets = []
-    for piece in corridor.pieces.values():
+    for piece in _streets(corridor):
         for lanes in (1, 2, 3):
             for cycle, green, wave in PLANS:
                 plan = {"cycle": cycle, "green": green, "carGreen": green, "wave": wave, "tramWait": 0.0}
@@ -154,21 +165,24 @@ def run(corridor, scenario, shift, headway, hour=8, design=None):
     if _WEIGHTS is None:
         train(corridor)
     car_h, bus_h, bike_h = demand(corridor, scenario, shift, hour)
+    left = buses_left(corridor, hour)
     streets = design["streets"]
-    layouts = {name: street_layout(corridor.piece(name), scenario, streets[name]) for name in corridor.pieces}
-    plans = {name: signal_plan(corridor.piece(name), scenario, streets[name], design["priority"], headway) for name in corridor.pieces}
+
+    def street(name, car, bus, bike, share=1.0):
+        return run_piece(corridor.piece(name), scenario, streets[name], design["priority"], headway, car, bus, bike, left * share, _piece)
+
     stats = {}
     upstream = car_h
     for name in ("trunk", "bypass", "city"):
-        stats[name] = _piece(corridor.piece(name), upstream, bus_h, bike_h, layouts[name], plans[name])
+        stats[name] = street(name, upstream, bus_h, bike_h)
         upstream = stats[name]["car_out"]
     for name, share in (("fiera", 0.56), ("pilastro", 0.44)):
-        stats[name] = _piece(corridor.piece(name), upstream * share, bus_h * share, bike_h * share, layouts[name], plans[name])
+        stats[name] = street(name, upstream * share, bus_h * share, bike_h * share, share)
     speeds = {name: item["car_mps"] for name, item in stats.items()}
     bike_speeds = {name: item["bike_mps"] for name, item in stats.items()}
     if scenario == "after":
-        transit_fiera = tram_trip(corridor, "fiera", plans)
-        transit_pilastro = tram_trip(corridor, "pilastro", plans)
+        transit_fiera = tram_trip(corridor, "fiera", design, headway, stats)
+        transit_pilastro = tram_trip(corridor, "pilastro", design, headway, stats)
     else:
         transit_fiera = bus_trip(stats, "fiera", corridor)
         transit_pilastro = bus_trip(stats, "pilastro", corridor)
@@ -181,7 +195,7 @@ def run(corridor, scenario, shift, headway, hour=8, design=None):
         bike_trip(stats, "fiera", "bike_min", corridor),
         hour=hour,
     )
-    result["pieces"] = piece_report(corridor, stats, layouts, plans)
+    result["pieces"] = piece_report(corridor, stats)
     result["priority"] = bool(design["priority"])
     return result
 

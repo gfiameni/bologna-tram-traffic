@@ -58,6 +58,8 @@ SPILL_DEG = 35.0
 BIN_M = 300.0
 STUB_M = 40.0
 PIECE_M = 100.0
+# North of Via Irnerio the tracks run beside the car lane, so cars keep it.
+OWN_TRACK = {"Via dell'Indipendenza", "Piazza Venti Settembre"}
 LAT0, LON0 = 44.5, 11.33
 KX = 111320.0 * math.cos(math.radians(LAT0))
 KY = 110574.0
@@ -437,12 +439,23 @@ def overlap(road, lines):
     return best
 
 
-def tag_lines(roads, tram_lines, car_pieces):
+def tag_lines(roads, tram_lines, car_pieces, spans):
+    """Tram lines on each road, the car route piece it is on, how far along, and whether the tracks run there."""
     for road in roads:
         road["tram"] = [name for name, lines in tram_lines.items() if overlap(road, lines) >= TRAM_SHARE]
         shares = {name: overlap(road, [line]) for name, line in car_pieces.items()}
         name, share = max(shares.items(), key=lambda item: item[1])
         road["piece"] = name if share >= TRAM_SHARE else None
+        road["at"] = -1
+        road["tracks"] = False
+        if road["piece"]:
+            samples, _, _ = along(road["xy"], 15.0)
+            _, chain, _ = nearest_on(samples, car_pieces[road["piece"]])
+            road["at"] = int(round(float(np.median(chain))))
+            road["tracks"] = any(start <= road["at"] < end for start, end in spans[road["piece"]])
+            if not road["tracks"] and "rossa" in road["tram"]:
+                road["tram"].remove("rossa")
+        road["ownTrack"] = bool(road["tram"]) and road["name"] in OWN_TRACK
 
 
 def spill(roads, tram_lines):
@@ -463,8 +476,7 @@ def spill(roads, tram_lines):
         road["tramBins"] = defaultdict(float)
         road["spillWeights"] = defaultdict(float)
     for line_index, (name, lines) in enumerate(tram_lines.items()):
-        on_line = np.array([name in roads[i]["tram"] or (name == "rossa" and roads[i]["piece"] not in (None, "bypass"))
-                            for i in owners])
+        on_line = np.array([name in roads[i]["tram"] or (name == "rossa" and roads[i]["tracks"]) for i in owners])
         best = np.full(len(points), np.inf)
         best_bin = np.full(len(points), -1)
         best_heading = np.zeros(len(points))
@@ -520,7 +532,7 @@ def main():
     network = json.loads((ROOT / "public" / "network.json").read_text())
     car_pieces = {name: polylines([[(lat, lon) for lon, lat in coords]])[0]
                   for name, coords in network["pieces"]["car"].items()}
-    tag_lines(roads, tram_lines, car_pieces)
+    tag_lines(roads, tram_lines, car_pieces, network["tramSpans"]["car"])
     bins = spill(roads, tram_lines)
     names = sorted({road["name"] for road in roads})
     line_ids = list(tram_lines)
@@ -541,6 +553,9 @@ def main():
             columns[f"measured{suffix}"].append(int(sides[0]) + 2 * int(sides[1]))
         columns["tram"].append(sum(1 << line_ids.index(name) for name in road["tram"]))
         columns["piece"].append(piece_ids.index(road["piece"]) if road["piece"] else -1)
+        columns["at"].append(road["at"])
+        columns["tracks"].append(int(road["tracks"]))
+        columns["ownTrack"].append(int(road["ownTrack"]))
         columns["tramBins"].append(road["tramBins"])
         columns["spill"].append(road["spill"])
     data = {

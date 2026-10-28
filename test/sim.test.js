@@ -15,6 +15,7 @@ const reference = JSON.parse(readFileSync(new URL("./fixtures/reference.json", i
 
 const KEYS = ["carFlow", "carFieraMin", "carPilastroMin", "bikeFieraMin", "transitFieraMin", "transitPilastroMin", "viaEmiliaKmh", "peoplePerHour", "unserved", "bikeFlow"];
 const PIECE_KEYS = ["lanes", "carGreen", "carIn", "carOut", "carMin", "capacity"];
+const STRETCH_KEYS = ["from", "to", "lanes", "carGreen", "pceIn", "carOut", "carMin", "busMin", "buses"];
 
 function close(a, b, tolerance) {
   return Math.abs(a - b) <= tolerance * Math.max(1, Math.abs(b));
@@ -42,6 +43,17 @@ for (const item of reference.cases) {
         if (!close(ours.pieces[name][key], piece[key], tolerance)) misses.push(`${name}.${key} ${ours.pieces[name][key]} vs ${piece[key]}`);
       }
       if (ours.pieces[name].oneWay !== piece.oneWay || ours.pieces[name].forcedOneWay !== piece.forcedOneWay) misses.push(`${name} direction`);
+      if (ours.pieces[name].stretches.length !== piece.stretches.length) {
+        misses.push(`${name} stretches ${ours.pieces[name].stretches.length} vs ${piece.stretches.length}`);
+        continue;
+      }
+      piece.stretches.forEach((stretch, index) => {
+        const mine = ours.pieces[name].stretches[index];
+        if (mine.tram !== stretch.tram) misses.push(`${name}[${index}] tracks`);
+        for (const key of STRETCH_KEYS) {
+          if (!close(mine[key], stretch[key], tolerance)) misses.push(`${name}[${index}].${key} ${mine[key]} vs ${stretch[key]}`);
+        }
+      });
     }
     check(`${item.model} ${item.design} ${item.hour}:00 shift ${item.shift} tram ${item.headway} min ${key} matches Python`, misses.length === 0, misses.slice(0, 4).join("; "));
   }

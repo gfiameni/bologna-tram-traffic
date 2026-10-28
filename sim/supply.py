@@ -20,6 +20,8 @@ class Piece:
     signals: list = field(default_factory=list)
     stops: list = field(default_factory=list)
     bike_protected: bool = False
+    # Metres from the start of the piece where the tracks run along it.
+    tram: list = field(default_factory=list)
 
 
 @dataclass
@@ -67,14 +69,16 @@ def load(root=ROOT):
     pieces = {}
     for name in PIECES:
         coords = network["pieces"]["car"][name]
+        spans = network["tramSpans"]["car"][name]
         pieces[name] = Piece(
             name=name,
             length=polyline_length(coords),
-            affected=bool(network["affected"]["car"][name]),
+            affected=bool(spans),
             free=FREE_MPS[name],
             signals=[item["s"] for item in raw["signals"] if item["piece"] == name and 0 < item["s"]],
             stops=[item["s"] for item in raw["busStops"] if item["piece"] == name and 0 < item["s"]],
             bike_protected=bool(raw["bikeProtected"].get(name)),
+            tram=[list(span) for span in spans],
         )
     tram_length = {
         name: polyline_length(coords) for name, coords in network["pieces"]["tram"].items()

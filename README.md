@@ -1,6 +1,6 @@
 # Bologna tram traffic
 
-A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigale through the historic centre to the Fiera (Michelino) and to Agraria at Pilastro. **Verde**, **Gialla**, and **Blu** switch on beside it.
+A model of the tram lines planned for Bologna. **Rossa** runs from Borgo Panigale through the historic centre, by Via delle Lame and Via Ugo Bassi, to the Fiera (Michelino) and along Via San Donato to San Donnino-Casalone, where buses carry on to Agraria at Pilastro. **Verde**, **Gialla**, and **Blu** switch on beside it.
 
 The page shows what the tram lines change for cars, buses, and bicycles: traffic, congestion, air quality, and noise, on the Linea Rossa route and on every main road of the city. Every option stays available at all times. The left panel holds the design. The right panel holds the results.
 
@@ -45,7 +45,7 @@ The cards give each mode its own row:
 | --- | --- |
 | Traffic | Cars that reach Porta San Felice · buses, or trams, an hour · bicycles on Via Emilia · car-km on the main roads |
 | Congestion | Share of the main roads at level E or F · the Via Emilia queue, and the cars sent round one-way streets · the hardest street on the route |
-| Air quality | Exhaust from cars · from buses (trams have none on the street) · on the main roads, and the mean NO2 measured from 1 January to 16 September of the scenario's year |
+| Air quality | Exhaust from cars · from buses (trams have none on the street; buses keep running past San Donnino-Casalone) · on the main roads, and the mean NO2 measured from 1 January to 16 September of the scenario's year |
 | Traffic noise | Cars, buses, and trams on the route · parallel streets · main roads |
 | Getting around | Car, bus or tram, and bicycle from Emilio Lepido to the Fiera and from Emilio Lepido to Agraria · people an hour past Porta San Felice |
 
@@ -57,19 +57,21 @@ The cards give each mode its own row:
 
 Eastbound traffic on the Linea Rossa car route, from Emilio Lepido to Porta San Felice, then around the historic centre on San Felice · Marconi · Pietramellara and out along Via Matteotti to the Fiera (56% of cars) or Via San Donato to Agraria (44%).
 
-- **Lanes.** Before, a street of width W has ⌊W / 6.5⌋ lanes each way. With the tram, the tracks take 6.5 m. Two-way leaves ⌊(W − 6.5) / 6.5⌋ lanes each way, one-way leaves ⌊(W − 6.5) / 3.25⌋. The streets start at 13 m; San Felice · Marconi · Pietramellara, which has no tracks, starts at 20 m.
+- **Tracks.** The tracks run the whole length of Via Emilia Ponente, Via Matteotti · Via della Liberazione, and Viale Aldo Moro. On the 2.2 km of San Felice · Marconi · Pietramellara they run along the first 700 m from Porta San Felice and the last 250 m, on Ponte Matteotti. On Via San Donato they end at San Donnino-Casalone, 2.2 km out, as in the May 2026 stop list. In After, a street with tracks on only part of it runs stretch by stretch: the cars that leave one stretch enter the next, the stretches with tracks lose 6.5 m and give green to the trams, and the others keep their lanes, their green, and their buses. The street check shows each street at its busiest stretch.
+- **Lanes.** Before, a street of width W has ⌊W / 6.5⌋ lanes each way. With the tram, the tracks take 6.5 m. Two-way leaves ⌊(W − 6.5) / 6.5⌋ lanes each way, one-way leaves ⌊(W − 6.5) / 3.25⌋. The streets start at 13 m, and San Felice · Marconi · Pietramellara at 20 m. Where the tracks leave too little room for two-way traffic on any stretch, the whole street runs one-way.
 - **Lights.** The baseline lights are modelled as a 90 second cycle with 50 seconds of green, which lets these streets carry the counted cars. Lights closer than 60 m count as one junction. A lane passes 1,800 cars an hour of green. A green wave lines the lights up at 30 km/h: it removes 30% of the signal delay in volume-delay, sets the signal offsets in cell transmission and car following, and is one of the surrogate's inputs.
-- **Priority.** With priority, each tram passage, in both directions, takes 18 seconds of the green, up to 65% of it. Without priority, the tram waits r²/2C at each junction.
+- **Priority.** With priority, each tram passage, in both directions, takes 18 seconds of the green, up to 65% of it. Without priority, the tram waits r²/2C at each junction along the tracks.
 - **One-way.** Cars of the other direction, 75% of the main flow, go round on parallel main roads.
+- **Transit to Agraria.** In After, it is the tram to San Donnino-Casalone, a wait of half the bus interval, and the bus on to Agraria. Those buses are the Agraria share, 44%, of the buses counted at Porta San Felice.
 
 At 08:00, Rossa on, a quarter of drivers switching, a tram every 4.5 minutes with priority, baseline lights. Before is 2024; After is 2026 with the tram:
 
-| Model | Cars an hour that reach Porta San Felice | Queue before Porta San Felice | Car, Emilio Lepido to the Fiera | Transit, Emilio Lepido to the Fiera |
-| --- | --- | --- | --- | --- |
-| Cell transmission | 1,020 → 369 | 110 → 423 | 53 → 61 min | 59 → 36 min |
-| Volume-delay | 1,130 → 792 | 0 → 32 over capacity | 34 → 47 min | 47 → 36 min |
-| Car following | 1,130 → 583 | 0 → 209 | 33 → 50 min | 43 → 36 min |
-| Neural surrogate | 971 → 345 | 159 → 447 | 50 → 48 min | 57 → 36 min |
+| Model | Cars an hour that reach Porta San Felice | Queue before Porta San Felice | Car, Emilio Lepido to the Fiera | Transit, Emilio Lepido to the Fiera | Transit, Emilio Lepido to Agraria |
+| --- | --- | --- | --- | --- | --- |
+| Cell transmission | 1,020 → 369 | 110 → 423 | 53 → 63 min | 58 → 35 min | 74 → 50 min |
+| Volume-delay | 1,130 → 792 | 0 → 32 over capacity | 34 → 48 min | 46 → 35 min | 59 → 49 min |
+| Car following | 1,130 → 583 | 0 → 209 | 33 → 51 min | 42 → 35 min | 61 → 50 min |
+| Neural surrogate | 929 → 267 | 201 → 525 | 49 → 39 min | 56 → 35 min | 73 → 49 min |
 
 Without the tram, 2026 sends 1,056 cars an hour down Via Emilia instead of 1,130. With cell transmission, 1,037 of them reach Porta San Felice and 19 queue.
 
@@ -77,9 +79,9 @@ Without the tram, 2026 sends 1,056 cars an hour down Via Emilia instead of 1,130
 
 **Optimise the lights** tries a 60, 90, or 120 second cycle, 45%, 60%, or 75% of it as green, and the green wave on or off, one street at a time, and keeps each change that lowers the person-minutes lost in an hour. Those minutes count the delay of every car that wants the trip, the delay on the streets that cross the route (300 cars an hour at each junction, 4 seconds lost at each change of phase), 30 minutes for each car that cannot get through, and the riders' time on board.
 
-With cell transmission at 08:00, the optimiser gives Via Emilia Ponente, San Felice · Marconi · Pietramellara, and Via Matteotti · Via della Liberazione a 120/90 second cycle, and Viale Aldo Moro and Via San Donato 90/60 seconds, all five with a green wave. Cars that reach Porta San Felice go from 369 to 764 an hour, the queue from 423 to 28, and the car trip from Emilio Lepido to the Fiera from 61 to 46 minutes. Before keeps the baseline lights, so part of that gain would also be available without the tram.
+With cell transmission at 08:00, the optimiser gives Via Emilia Ponente, San Felice · Marconi · Pietramellara, and Via Matteotti · Via della Liberazione a 120/90 second cycle, and Viale Aldo Moro and Via San Donato 90/60 seconds, all five with a green wave. Cars that reach Porta San Felice go from 369 to 764 an hour, the queue from 423 to 28, and the car trip from Emilio Lepido to the Fiera from 63 to 47 minutes. Before keeps the baseline lights, so part of that gain would also be available without the tram.
 
-**Predict best setup** tries a tram every 3 to 8 minutes, with and without priority, with the streets as set or one-way where the tracks run, then optimises the winner's lights. Its cost, in person-minutes an hour, adds 30 minutes for each rider left at the stop, 10 for each car sent round a one-way street, and 300 for each tram an hour it takes to run the service. At 08:00, all four models choose a tram every 6.5 minutes with optimised lights: the longest interval that still carries every rider, now that 2026 has 37 buses an hour to replace at Porta San Felice instead of 49 in 2024. Cell transmission, car following, and the surrogate run it without priority: each tram waits about 4 seconds at a red light, which costs the riders less than priority would cost the single car lane. Volume-delay, which lets every car through, keeps priority.
+**Predict best setup** tries a tram every 3 to 8 minutes, with and without priority, with the streets as set or one-way where the tracks run, then optimises the winner's lights. Its cost, in person-minutes an hour, adds 30 minutes for each rider left at the stop, 10 for each car sent round a one-way street, and 300 for each tram an hour it takes to run the service. At 08:00, all four models choose a tram every 6.5 minutes with optimised lights: the longest interval that still carries every rider, now that 2026 has 37 buses an hour to replace at Porta San Felice instead of 49 in 2024. Cell transmission and car following run it without priority: each tram waits 4 to 5 seconds at a red light, which costs the riders less than priority would cost the single car lane. Volume-delay, which lets every car through, and the surrogate keep priority.
 
 ### The city's main roads
 
@@ -87,12 +89,12 @@ Every OpenStreetMap trunk, primary, secondary, and tertiary road in Bologna, wit
 
 - **Cars.** The Comune's loop detectors count each lane: 2024 for Before, 2026 for After. Flows are the median of each hour over the school-term Tuesdays to Thursdays of 6–31 May and 16–30 September 2024, and of 4–29 May and 15–30 September 2026. A road without a detector takes the nearest measured stretch of the same street, or the median of its road class.
 - **Capacity.** A lane carries 1,800 cars an hour of green, with 70% green on trunk roads, 60% on primary, 50% on secondary, 45% on tertiary, and 90% where there is no signal, or its busiest hour measured in either year if that is higher, up to 1,900. A road without tracks carries the same cars in both years.
-- **Tram lines.** On an open line, a share of drivers switch (the slider for Rossa; 8% for Verde and Gialla, 10% for Blu), the tracks take one lane each way, or share the only lane, and priority takes its green.
+- **Tram lines.** On an open line, a share of drivers switch (the slider for Rossa; 8% for Verde and Gialla, 10% for Blu), the tracks take one lane each way, or share the only lane, and priority takes its green. On Via dell'Indipendenza north of Via Irnerio and in Piazza XX Settembre the tram has its own track beside the car lane, so the cars keep it. Roads on the Linea Rossa car route take the numbers of the model stretch they sit on.
 - **Diverted cars.** Cars that no longer fit on a tram street, and the other direction of a one-way street, spread over the parallel main roads 80 m to 1.2 km away and within 35° of its heading, weighted by lanes / (1 + distance / 400 m).
 - **Level of service.** On the main roads it is the load: under 60% is A, under 70% B, under 80% C, under 90% D, under 100% E, then F. The five streets of the Linea Rossa route take their level from the selected model's delay at each junction: up to 10 s is A, 20 s B, 35 s C, 55 s D, 80 s E, and F beyond that or above capacity.
 - **Speed, exhaust, and noise.** Speed is 30 / (1 + 0.8 x²) km/h at load x. Exhaust is cars × (0.6 + 0.4 × 30 / speed), with a bus as 5 cars. Traffic noise is 10·log10 of the change in sound energy, with a bus as loud as 8 cars and a tram as loud as 5.
 
-At 08:00 with cell transmission, 9.9% of the main roads are at level E or F in 2024. 2026 without the tram has 6.2%, with 7% fewer car-km. With Rossa, 2026 has 8.9%, and with all four lines 10.7%. With Rossa, exhaust on its route falls by 47% and traffic noise by 2.8 dB against 2024. The 23 km of parallel streets carry 2% fewer cars than in 2024: the cars the tram sends there are fewer than the drop in traffic since 2024.
+At 08:00 with cell transmission, 9.9% of the main roads are at level E or F in 2024. 2026 without the tram has 6.2%, with 7% fewer car-km. With Rossa, 2026 has 9.6%, and with all four lines 11.3%. With Rossa, exhaust on its route falls by 46% and traffic noise by 2.8 dB against 2024. The 34 km of parallel streets carry 4% fewer cars than in 2024: the cars the tram sends there are fewer than the drop in traffic since 2024.
 
 ### When to use each model
 
@@ -113,7 +115,7 @@ Start with cell transmission for the peaks. Volume-delay is the quickest to read
 
 **Car following.** The Intelligent Driver Model. Cars, buses, and bicycles are single vehicles. A bus dwells at each stop. Bicycles ride in the traffic, or at their own speed where OpenStreetMap shows a cycle track along most of the street.
 
-**Neural surrogate.** A 16-neuron network trained on cell-transmission runs of these streets across lanes and light plans. Ten inputs describe a street: cars, bicycles, buses, lanes, lights, length, protected cycling, green share, cycle, and green wave. The holdout error is 0.62 minutes per street. It does not use NVIDIA PhysicsNeMo.
+**Neural surrogate.** A 16-neuron network trained on 1,050 cell-transmission runs of these streets, and of the stretches with and without tracks, across lanes and light plans. Ten inputs describe a street: cars, bicycles, buses, lanes, lights, length, protected cycling, green share, cycle, and green wave. The holdout error is 0.53 minutes per street. It does not use NVIDIA PhysicsNeMo.
 
 ## Disclaimer
 
@@ -129,6 +131,7 @@ A few inputs are assumptions, because the published data does not contain them:
 - The bus count is the number of trips that stop at Porta San Felice between 08:00 and 09:00, on Friday 6 September 2024 and Friday 11 September 2026. With the tram, the 2026 buses leave Via Emilia.
 - Street widths start at 13 m because OpenStreetMap does not record them for these streets. Set the real width with the slider.
 - Gialla also runs on Via San Felice, part of San Felice · Marconi · Pietramellara. The Linea Rossa route model does not take that into account.
+- The tracks along each street come from OpenStreetMap: a stretch of a car street within 15 m of the Rossa tracks has them. The May 2026 stop list ends the Agraria branch at San Donnino-Casalone; the model keeps it there.
 - Exhaust is a traffic proxy, not a pollution plume. Wind, chemistry, and street-canyon spread are not in the model. The tram is not in service in either year, so the change in measured NO2 from 2024 to 2026 is not a tram effect. Both years are averaged from 1 January to 16 September, so the seasons match.
 - Traffic noise is an estimate from traffic volume, not a measurement.
 - Car occupancy (1.3 people) and a full bus (45 people) are modelling choices.

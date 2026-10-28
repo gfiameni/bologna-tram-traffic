@@ -5,8 +5,8 @@
  * Edie's definitions over whole signal cycles, and the travel time scales to
  * the full length from the mean speed.
  */
-import { TODAY, layoutsAndPlans, measureWindow, offsets, pyRound } from "./design.js";
-import { demand, finish } from "./engine.js";
+import { TODAY, measureWindow, offsets, pyRound } from "./design.js";
+import { busesLeft, demand, finish, runPiece } from "./engine.js";
 
 const DT = 0.5;
 const REACH_M = 2500;
@@ -185,17 +185,19 @@ function piece(item, carH, busH, bikeH, layout, plan) {
 
 export function run(corridor, scenario, shift, headway, hour, design) {
   const { cars, buses, bikes } = demand(corridor, scenario, shift, hour);
-  const { layouts, plans } = layoutsAndPlans(corridor, scenario, design, headway);
+  const left = busesLeft(corridor, hour);
+  const street = (name, car, bus, bike, share = 1) =>
+    runPiece(corridor.pieces[name], scenario, design.streets[name], design.priority, headway, car, bus, bike, left * share, piece, true);
   const stats = {};
   let upstream = cars;
   let bikeUp = bikes;
   for (const name of ["trunk", "bypass", "city"]) {
-    stats[name] = piece(corridor.pieces[name], upstream, name !== "bypass" ? buses : 0, bikeUp, layouts[name], plans[name]);
+    stats[name] = street(name, upstream, name !== "bypass" ? buses : 0, bikeUp);
     upstream = Math.min(upstream, stats[name].car_out);
     bikeUp = Math.min(bikeUp, Math.max(stats[name].bike_out, 1));
   }
   for (const [name, share] of [["fiera", 0.56], ["pilastro", 0.44]]) {
-    stats[name] = piece(corridor.pieces[name], upstream * share, buses * share, bikes * share, layouts[name], plans[name]);
+    stats[name] = street(name, upstream * share, buses * share, bikes * share, share);
   }
-  return finish(corridor, scenario, shift, headway, hour, design, stats, layouts, plans, Math.min(cars, stats.trunk.car_out), Math.min(bikes, stats.trunk.bike_out));
+  return finish(corridor, scenario, shift, headway, hour, design, stats, Math.min(cars, stats.trunk.car_out), Math.min(bikes, stats.trunk.bike_out));
 }

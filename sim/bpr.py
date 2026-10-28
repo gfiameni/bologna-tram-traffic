@@ -1,7 +1,7 @@
 """Volume-delay model with signals, buses, and bicycles."""
 
-from sim.design import SATURATION_PER_LANE, WAVE_PROGRESSION, junction_count, signal_plan, street_layout
-from sim.engine import bike_trip, bus_trip, chain_time, demand, people_and_transit, piece_report, tram_trip
+from sim.design import SATURATION_PER_LANE, WAVE_PROGRESSION, junction_count
+from sim.engine import bike_trip, buses_left, bus_trip, chain_time, demand, people_and_transit, piece_report, run_piece, tram_trip
 
 ALPHA = 0.8
 
@@ -54,20 +54,19 @@ def _piece(piece, car_h, bus_h, bike_h, layout, plan):
 
 def run(corridor, scenario, shift, headway, hour=8, design=None):
     car_h, bus_h, bike_h = demand(corridor, scenario, shift, hour)
+    left = buses_left(corridor, hour)
     streets = design["streets"]
-    layouts = {name: street_layout(corridor.piece(name), scenario, streets[name]) for name in corridor.pieces}
-    plans = {name: signal_plan(corridor.piece(name), scenario, streets[name], design["priority"], headway) for name in corridor.pieces}
     stats = {}
     for name in corridor.pieces:
-        flow = car_h * (0.56 if name == "fiera" else 0.44) if name in ("fiera", "pilastro") else car_h
-        bus = bus_h * (0.56 if name == "fiera" else 0.44) if name in ("fiera", "pilastro") else bus_h
-        bike = bike_h * (0.56 if name == "fiera" else 0.44) if name in ("fiera", "pilastro") else bike_h
-        stats[name] = _piece(corridor.piece(name), flow, bus, bike, layouts[name], plans[name])
+        share = {"fiera": 0.56, "pilastro": 0.44}.get(name, 1.0)
+        stats[name] = run_piece(
+            corridor.piece(name), scenario, streets[name], design["priority"], headway, car_h * share, bus_h * share, bike_h * share, left * share, _piece
+        )
     car_fiera = chain_time(stats, "fiera", "car_min")
     car_pilastro = chain_time(stats, "pilastro", "car_min")
     if scenario == "after":
-        transit_fiera = tram_trip(corridor, "fiera", plans)
-        transit_pilastro = tram_trip(corridor, "pilastro", plans)
+        transit_fiera = tram_trip(corridor, "fiera", design, headway, stats)
+        transit_pilastro = tram_trip(corridor, "pilastro", design, headway, stats)
     else:
         transit_fiera = bus_trip(stats, "fiera", corridor)
         transit_pilastro = bus_trip(stats, "pilastro", corridor)
@@ -80,6 +79,6 @@ def run(corridor, scenario, shift, headway, hour=8, design=None):
         car_fiera, car_pilastro, bike_trip(stats, "fiera", "bike_min", corridor),
         hour=hour,
     )
-    result["pieces"] = piece_report(corridor, stats, layouts, plans)
+    result["pieces"] = piece_report(corridor, stats)
     result["priority"] = bool(design["priority"])
     return result

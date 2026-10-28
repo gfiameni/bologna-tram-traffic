@@ -91,7 +91,12 @@ def main():
     check("tram priority takes green from cars", held["pieces"]["trunk"]["carGreen"] < unheld["pieces"]["trunk"]["carGreen"])
     check("without priority more cars get through", unheld["carFlow"] > held["carFlow"])
     check("without priority the tram waits at red", unheld["transitFieraMin"] > held["transitFieraMin"] + 3)
-    check("the bypass keeps its green with priority", held["pieces"]["bypass"]["carGreen"] == held["pieces"]["bypass"]["green"])
+    bypass = held["pieces"]["bypass"]
+    check("the bypass keeps its green away from the tracks", all(item["carGreen"] == bypass["green"] for item in bypass["stretches"] if not item["tram"]))
+    check("priority takes green where the bypass meets the tracks", any(item["tram"] and item["carGreen"] < bypass["green"] for item in bypass["stretches"]))
+    tail = held["pieces"]["pilastro"]["stretches"][-1]
+    check("past San Donnino-Casalone the Agraria branch keeps its buses", not tail["tram"] and tail["buses"] > 0)
+    check("Before runs each street whole", all(len(item["stretches"]) == 1 for item in before["pieces"].values()))
 
     one_way = copy.deepcopy(default_design())
     one_way["streets"]["trunk"]["oneWay"] = True

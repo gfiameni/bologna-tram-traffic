@@ -1,6 +1,6 @@
 /** Volume-delay model with signals, buses, and bicycles. A port of sim/bpr.py. */
-import { SATURATION_PER_LANE, WAVE_PROGRESSION, junctionCount, layoutsAndPlans } from "./design.js";
-import { demand, finish } from "./engine.js";
+import { SATURATION_PER_LANE, WAVE_PROGRESSION, junctionCount } from "./design.js";
+import { busesLeft, demand, finish, runPiece } from "./engine.js";
 
 const ALPHA = 0.8;
 
@@ -50,11 +50,13 @@ function piece(item, carH, busH, bikeH, layout, plan) {
 
 export function run(corridor, scenario, shift, headway, hour, design) {
   const { cars, buses, bikes } = demand(corridor, scenario, shift, hour);
-  const { layouts, plans } = layoutsAndPlans(corridor, scenario, design, headway);
+  const left = busesLeft(corridor, hour);
   const stats = {};
   for (const name of Object.keys(corridor.pieces)) {
     const share = name === "fiera" ? 0.56 : name === "pilastro" ? 0.44 : 1;
-    stats[name] = piece(corridor.pieces[name], cars * share, buses * share, bikes * share, layouts[name], plans[name]);
+    stats[name] = runPiece(
+      corridor.pieces[name], scenario, design.streets[name], design.priority, headway, cars * share, buses * share, bikes * share, left * share, piece,
+    );
   }
-  return finish(corridor, scenario, shift, headway, hour, design, stats, layouts, plans, stats.trunk.car_out, stats.trunk.bike_out);
+  return finish(corridor, scenario, shift, headway, hour, design, stats, stats.trunk.car_out, stats.trunk.bike_out);
 }

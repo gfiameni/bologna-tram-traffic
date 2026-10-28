@@ -47,13 +47,21 @@ PILASTRO = [
     ("repubblica", "Repubblica", 44.50593, 11.36150),
     ("spadolini", "Piazza Spadolini", 44.50389, 11.36680),
     ("san-donato", "San Donato", 44.50528, 11.37168),
-    ("san-donnino", "San Donnino", 44.50787, 11.37683),
+    ("san-donnino", "San Donnino-Casalone", 44.50787, 11.37683),
     ("san-giorgio", "Villaggio San Giorgio", 44.51136, 11.38562),
     ("pirandello", "Pirandello", 44.51126, 11.39158),
     ("pilastro", "Pilastro", 44.51040, 11.39620),
     ("sighinolfi", "Sighinolfi", 44.51120, 11.40115),
     ("agraria", "Facoltà di Agraria", 44.51376, 11.40589),
 ]
+# The May 2026 stop list ends the Agraria branch at San Donnino-Casalone until the Passante is
+# built. Cars still drive on to Agraria.
+TRAM_END = "san-donnino"
+# A car street runs along the tram where it is this close to the tracks.
+ALONG_M = 15.0
+# No stretch, with or without tracks, is shorter than this.
+GAP_M = 60.0
+SPAN_MIN_M = 60.0
 
 TRAM_NAMES = {
     "Via Marco Emilio Lepido",
@@ -62,6 +70,7 @@ TRAM_NAMES = {
     "Via San Felice",
     "Piazza di Porta San Felice",
     "Via Riva di Reno",
+    "Via delle Lame",
     "Via Ugo Bassi",
     "Via Rizzoli",
     "Via dell'Indipendenza",
@@ -424,6 +433,54 @@ def dump(line):
     return [[round(lon, 6), round(lat, 6)] for lon, lat in line]
 
 
+def along(line, lon, lat):
+    """Metres along a line to the point closest to lon/lat, and how far off the line it is."""
+    best_s = 0
+    best_d = 1e18
+    s = 0
+    for a, b in zip(line, line[1:]):
+        seg = hav(a, b) or 1e-6
+        ax, ay = a
+        bx, by = b
+        scale = math.cos(math.radians(ay))
+        vx, vy = (bx - ax) * scale, by - ay
+        wx, wy = (lon - ax) * scale, lat - ay
+        den = vx * vx + vy * vy or 1e-12
+        t = max(0, min(1, (wx * vx + wy * vy) / den))
+        proj = (ax + (bx - ax) * t, ay + (by - ay) * t)
+        d = hav((lon, lat), proj)
+        if d < best_d:
+            best_d = d
+            best_s = s + seg * t
+        s += seg
+    return best_s, best_d
+
+
+def tram_spans(car, tram_lines, step=5.0):
+    """Stretches of a car line, in metres from its start, that run along the tracks."""
+    total = length(car)
+    marks = []
+    s = 0.0
+    while s <= total:
+        marks.append(s)
+        s += step
+    points = resample(car, step)
+    spans = []
+    for mark, point in zip(marks, points):
+        if min(along(line, point[0], point[1])[1] for line in tram_lines) > ALONG_M:
+            continue
+        if spans and mark - spans[-1][1] <= GAP_M:
+            spans[-1][1] = mark
+        else:
+            spans.append([mark, mark])
+    spans = [[a, min(b + step, total)] for a, b in spans if b - a >= SPAN_MIN_M]
+    if spans and spans[0][0] <= GAP_M:
+        spans[0][0] = 0.0
+    if spans and spans[-1][1] >= total - GAP_M:
+        spans[-1][1] = total
+    return [[round(a, 1), round(b, 1)] for a, b in spans]
+
+
 def main():
     ways = fetch_ways()
     tram_ways = [w for w in ways if w["name"] in TRAM_NAMES]
@@ -438,6 +495,7 @@ def main():
             ("Viale Tito Carnacini", "Rotonda Augusto Baroni"),
             ("Via San Donato", "Viale Tito Carnacini"),
             ("Via Larga", "Via Luigi Pirandello"),
+            ("Via delle Lame", "Via Ugo Bassi"),
         ],
     )
     print("bypass graph")
@@ -469,7 +527,9 @@ def main():
     print("tram pilastro")
     pil_line = resample(through(tram, [fork] + PILASTRO))
     pil_line, _ = clip_from(pil_line, fork[3], fork[2])
-    print(f"pilastro spur {length(pil_line)/1000:.2f} km")
+    end = next(stop for stop in PILASTRO if stop[0] == TRAM_END)
+    tram_pil, end_d = clip_until(pil_line, end[3], end[2])
+    print(f"pilastro spur {length(pil_line)/1000:.2f} km, tracks {length(tram_pil)/1000:.2f} km to {end[1]} (off {end_d:.0f} m)")
 
     west_end = ("porta-san-felice", "Porta San Felice", TRUNK[11][2], TRUNK[11][3])
     rejoin = next(stop for stop in TRUNK if stop[0] == "matteotti")
@@ -514,7 +574,7 @@ def main():
     lines = {
         "tram-trunk": tram_trunk,
         "tram-fiera": fiera_line,
-        "tram-pilastro": pil_line,
+        "tram-pilastro": tram_pil,
         "car-trunk": car_trunk,
         "car-bypass": car_bypass,
         "car-city": car_city,
@@ -529,32 +589,25 @@ def main():
         stops.append({"id": sid, "name": name, "lat": lat, "lon": lon, "branch": "trunk"})
     for sid, name, lat, lon in FIERA:
         stops.append({"id": sid, "name": name, "lat": lat, "lon": lon, "branch": "fiera"})
-    for sid, name, lat, lon in PILASTRO:
+    for sid, name, lat, lon in PILASTRO[: PILASTRO.index(end) + 1]:
         stops.append({"id": sid, "name": name, "lat": lat, "lon": lon, "branch": "pilastro"})
-
-    def along(line, lon, lat):
-        best_s = 0
-        best_d = 1e18
-        s = 0
-        for a, b in zip(line, line[1:]):
-            seg = hav(a, b) or 1e-6
-            ax, ay = a
-            bx, by = b
-            scale = math.cos(math.radians(ay))
-            vx, vy = (bx - ax) * scale, by - ay
-            wx, wy = (lon - ax) * scale, lat - ay
-            den = vx * vx + vy * vy or 1e-12
-            t = max(0, min(1, (wx * vx + wy * vy) / den))
-            proj = (ax + (bx - ax) * t, ay + (by - ay) * t)
-            d = hav((lon, lat), proj)
-            if d < best_d:
-                best_d = d
-                best_s = s + seg * t
-            s += seg
-        return best_s, best_d
 
     screen_s, screen_d = along(tram_trunk, TRUNK[11][3], TRUNK[11][2])
     print(f"screenline {screen_s:.0f} m along tram trunk, off by {screen_d:.0f} m")
+
+    # Trunk, city and Fiera run on the tram alignment end to end; the bypass meets it on the way.
+    car = {"trunk": car_trunk, "bypass": car_bypass, "city": car_city, "fiera": car_fiera, "pilastro": car_pil}
+    whole = lambda line: [[0.0, round(length([tuple(p) for p in dump(line)]), 1)]]
+    spans = {
+        "trunk": whole(car_trunk),
+        "bypass": tram_spans(car_bypass, [tram_trunk, fiera_line, tram_pil]),
+        "city": whole(car_city),
+        "fiera": whole(car_fiera),
+        "pilastro": [[0.0, round(along(car_pil, end[3], end[2])[0], 1)]],
+    }
+    for name, items in spans.items():
+        covered = sum(b - a for a, b in items)
+        print(f"tracks along car {name}: {covered:.0f} of {length(car[name]):.0f} m {items}")
 
     payload = {
         "attribution": "Street and stop geometry © OpenStreetMap contributors.",
@@ -563,25 +616,12 @@ def main():
             "tram": {
                 "trunk": dump(tram_trunk),
                 "fiera": dump(fiera_line),
-                "pilastro": dump(pil_line),
+                "pilastro": dump(tram_pil),
             },
-            "car": {
-                "trunk": dump(car_trunk),
-                "bypass": dump(car_bypass),
-                "city": dump(car_city),
-                "fiera": dump(car_fiera),
-                "pilastro": dump(car_pil),
-            },
+            "car": {name: dump(line) for name, line in car.items()},
         },
-        "affected": {
-            "car": {
-                "trunk": True,
-                "bypass": False,
-                "city": True,
-                "fiera": True,
-                "pilastro": True,
-            }
-        },
+        "affected": {"car": {name: bool(items) for name, items in spans.items()}},
+        "tramSpans": {"car": spans},
         "screenline": {"name": "Porta San Felice", "tramTrunkM": round(screen_s, 1)},
     }
     OUT.write_text(json.dumps(payload))

@@ -108,7 +108,7 @@ The legend explains what the map shows at that moment: the vehicle colours, the 
 
 ### Tram lines
 
-Tick **Rossa**, **Verde**, **Gialla**, and **Blu** in any combination. An open line takes a share of drivers, gives the tracks a lane each way on its streets, or shares the only lane, and sends the cars that no longer fit onto the parallel main roads. Rossa runs from Borgo Panigale through the historic centre to the Fiera and to Agraria at Pilastro. The four models run on the Linea Rossa car route, and every line changes the city's main roads.
+Tick **Rossa**, **Verde**, **Gialla**, and **Blu** in any combination. An open line takes a share of drivers, gives the tracks a lane each way on its streets, or shares the only lane, and sends the cars that no longer fit onto the parallel main roads. On Via dell'Indipendenza north of Via Irnerio and in Piazza XX Settembre the tram has its own track beside the car lane, so the cars keep it. Rossa runs from Borgo Panigale through the historic centre, by Via delle Lame and Via Ugo Bassi, to the Fiera and along Via San Donato to San Donnino-Casalone, where buses carry on to Agraria at Pilastro. The four models run on the Linea Rossa car route, and every line changes the city's main roads.
 
 ![Compare with Rossa, then Verde, Gialla, and Blu added](lines.gif)
 
@@ -127,14 +127,16 @@ This section appears in After and Compare. Pick one of the five streets of the r
 | Street | Part of the route |
 | --- | --- |
 | Via Emilia Ponente | From Emilio Lepido to Porta San Felice |
-| San Felice · Marconi · Pietramellara | Around the historic centre, where Rossa runs through. No Rossa tracks |
+| San Felice · Marconi · Pietramellara | Around the historic centre, where Rossa runs through. Rossa tracks on the first 700 m from Porta San Felice and on Ponte Matteotti |
 | Via Matteotti · Via della Liberazione | Towards the Fiera, for 56% of the cars |
 | Viale Aldo Moro | Into the Fiera |
-| Via San Donato | To Agraria at Pilastro, for 44% of the cars |
+| Via San Donato | To Agraria at Pilastro, for 44% of the cars. Rossa tracks as far as San Donnino-Casalone, then buses |
+
+On a street with tracks on only part of it, the stretches with tracks lose 6.5 m and give green to the trams, and the others keep their lanes, their green, and their buses. The Street check shows the busiest stretch.
 
 - **Street width, kerb to kerb**, 10 to 24 m. The width sets the lanes in both scenarios, so Before and After describe the same street. Before, a street of width W has W ÷ 6.5 lanes each way, rounded down. With the tram, the tracks take 6.5 m. Two-way leaves (W − 6.5) ÷ 6.5 lanes each way and one-way leaves (W − 6.5) ÷ 3.25 lanes, both rounded down. The streets start at 13 m, and San Felice · Marconi · Pietramellara at 20 m. Set the real width when you know it.
 - **Two-way or One-way.** With the tram, one-way gives all the lanes left to the main direction. The cars of the other direction, 75% of the main flow, go round on parallel main roads. A street too narrow for two-way traffic beside the tracks becomes one-way on its own: One-way stays selected and the note under the switch says so.
-- **Lanes note.** Lanes without and with the tracks, for the width and direction you set.
+- **Lanes note.** Lanes without and with the tracks, for the width and direction you set. On a street with tracks on only part of it, the note also gives the metres with tracks and the lanes on the rest.
 - **Light cycle**, 60 to 120 s, and **Green for this street**, 15 to 90 s. The street that crosses always keeps at least 30 s, so the green stops 30 s short of the cycle.
 - **Green wave** lines up the lights along the street at 30 km/h.
 - **Optimise the lights** finds the cycle, green, and green wave for each of the five streets that lose the fewest person-minutes with the selected model. It tries cycles of 60, 90, and 120 s, with 45%, 60%, or 75% of each as green, and the green wave on or off, one street at a time. The note lists the plan it chose and the person-minutes lost an hour before and after.
@@ -176,9 +178,9 @@ The four figures show one street through each model. Their numbers are worked ex
 
 ![One lane drawn to scale: a car at 30 km/h, a car waiting behind a bus at a stop, a car at 18 km/h braking with a 15 m gap, three cars stopped 2 m apart at a red light, and bicycles at 19 km/h on a cycle track](model-car-following.png)
 
-**Neural surrogate** is a small network that learned cell transmission. It was trained on 525 cell-transmission runs: the five streets with one, two, and three lanes, seven light plans, and five demand levels. Ten inputs about a street feed 16 neurons, which give the minutes on the street and the share of cars that get through. On runs kept out of training it is within 0.62 min per street on average. It answers at once and holds inside the range it learned.
+**Neural surrogate** is a small network that learned cell transmission. It was trained on 1,050 cell-transmission runs: the five streets and the five stretches of the two streets the tracks cover only in part, with one, two, and three lanes, seven light plans, and five demand levels. Ten inputs about a street feed 16 neurons, which give the minutes on the street and the share of cars that get through. On runs kept out of training it is within 0.53 min per street on average. It answers at once and holds inside the range it learned.
 
-![Ten street inputs, from cars to green wave, connected to 16 neurons and two outputs: minutes on the street and the share that gets through; held-out error 0.62 min](model-neural-surrogate.png)
+![Ten street inputs, from cars to green wave, connected to 16 neurons and two outputs: minutes on the street and the share that gets through; held-out error 0.53 min](model-neural-surrogate.png)
 
 ### Predict best setup
 

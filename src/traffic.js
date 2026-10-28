@@ -2,12 +2,16 @@
 
 const CAR_PIECES = ["trunk", "bypass", "city", "fiera", "pilastro"];
 
-function geometryMode(mode) {
-  return mode === "car" ? "car" : "tram";
-}
-
 function chainFor(mode, branch) {
   return mode === "car" ? ["trunk", "bypass", "city", branch] : ["trunk", branch];
+}
+
+/** The stretch of Via San Donato past the end of the tracks, where buses still run. */
+function busTail(spec) {
+  if (spec.transit !== "tram") return null;
+  const stretches = spec.pieces?.pilastro?.stretches || [];
+  const tail = stretches[stretches.length - 1];
+  return tail && !tail.tram && tail.buses > 0 ? tail : null;
 }
 
 export function createTraffic(geo) {
@@ -16,6 +20,11 @@ export function createTraffic(geo) {
     after: { vehicles: [], acc: {} },
   };
   let nextId = 1;
+
+  /** The tracks to Agraria end at San Donnino-Casalone; buses and bicycles ride Via San Donato to the end. */
+  function polyline(mode, piece) {
+    return geo.pieces[mode === "car" || (mode !== "tram" && piece === "pilastro") ? "car" : "tram"][piece];
+  }
 
   function add(world, vehicle) {
     if (world.vehicles.length > 2800) return;
@@ -73,6 +82,15 @@ export function createTraffic(geo) {
         seedEven(world, scenario, "bike", branch, bikeFlow, spec, params, dir);
       }
     }
+    const tail = busTail(spec);
+    if (tail) {
+      const gap = (3600 / tail.buses) * Math.max(1.5, spec.speeds.pilastro);
+      for (const dir of [1, -1]) {
+        for (let s = tail.from + (dir > 0 ? 0.2 : 0.5) * gap; s < tail.to; s += gap) {
+          add(world, { scenario, mode: "bus", dir, branch: "pilastro", piece: "pilastro", s, tail: tail.from });
+        }
+      }
+    }
   }
 
   function seedEven(world, scenario, mode, branch, perHour, spec, params, dir) {
@@ -85,7 +103,7 @@ export function createTraffic(geo) {
       let remaining = elapsed;
       let placed = false;
       for (const piece of pieces) {
-        const poly = geo.pieces[geometryMode(mode)][piece];
+        const poly = polyline(mode, piece);
         const probe = { mode, piece, s: poly.length / 2, dir, branch };
         const speed = Math.max(1.5, speedOf(probe, spec, params));
         const duration = poly.length / speed;
@@ -123,8 +141,7 @@ export function createTraffic(geo) {
       vehicle.dwell -= dt;
       return true;
     }
-    const mode = geometryMode(vehicle.mode);
-    const poly = geo.pieces[mode][vehicle.piece];
+    const poly = polyline(vehicle.mode, vehicle.piece);
     const speed = speedOf(vehicle, spec, params);
     const next = vehicle.s + vehicle.dir * speed * dt;
     if (vehicle.mode === "bus" || vehicle.mode === "tram") {
@@ -142,6 +159,7 @@ export function createTraffic(geo) {
       }
     }
     vehicle.s = next;
+    if (vehicle.tail !== undefined && vehicle.dir < 0 && vehicle.s <= vehicle.tail) return false;
     if (vehicle.dir > 0 && vehicle.s >= poly.length) {
       const chain = chainFor(vehicle.mode, vehicle.branch);
       const index = chain.indexOf(vehicle.piece);
@@ -153,7 +171,7 @@ export function createTraffic(geo) {
       const index = chain.indexOf(vehicle.piece);
       if (index <= 0) return false;
       vehicle.piece = chain[index - 1];
-      vehicle.s = geo.pieces[mode][vehicle.piece].length;
+      vehicle.s = polyline(vehicle.mode, vehicle.piece).length;
     }
     return true;
   }
@@ -205,7 +223,7 @@ export function createTraffic(geo) {
               dir: -1,
               branch,
               piece: branch,
-              s: geo.pieces.tram[branch].length,
+              s: polyline(mode, branch).length,
             });
           }
           const bikeShare = (spec.bikeFlow || 0) * share[branch];
@@ -221,8 +239,17 @@ export function createTraffic(geo) {
               dir: -1,
               branch,
               piece: branch,
-              s: geo.pieces.tram[branch].length,
+              s: polyline("bike", branch).length,
             });
+          }
+        }
+        const tail = busTail(spec);
+        if (tail) {
+          for (let i = take(world, "bus-east-tail", tail.buses, dt); i > 0; i--) {
+            add(world, { scenario, mode: "bus", dir: 1, branch: "pilastro", piece: "pilastro", s: tail.from, tail: tail.from });
+          }
+          for (let i = take(world, "bus-west-tail", tail.buses, dt); i > 0; i--) {
+            add(world, { scenario, mode: "bus", dir: -1, branch: "pilastro", piece: "pilastro", s: tail.to, tail: tail.from });
           }
         }
         world.vehicles = world.vehicles.filter((vehicle) => move(vehicle, spec, params, dt));
@@ -232,7 +259,7 @@ export function createTraffic(geo) {
       return worlds[scenario].vehicles;
     },
     locate(vehicle) {
-      const poly = geo.pieces[geometryMode(vehicle.mode)][vehicle.piece];
+      const poly = polyline(vehicle.mode, vehicle.piece);
       const s = Math.max(0, Math.min(poly.length, vehicle.s));
       let index = Math.min(
         poly.points.length - 2,

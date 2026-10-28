@@ -24,7 +24,7 @@ LINES = [
     {
         "id": "rossa",
         "name": "Rossa",
-        "termini": "Emilio Lepido – Michelino / Agraria",
+        "termini": "Emilio Lepido – Michelino / San Donnino-Casalone",
         "color": "#e30613",
         "source": "network",
     },

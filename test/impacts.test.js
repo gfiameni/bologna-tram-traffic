@@ -30,7 +30,11 @@ const street = (record, name) => streetRows(record).find((row) => row.name === n
 const pair = run(null);
 check("the street check lists five streets", streetRows(pair.after).length === 5);
 check("the tracks take a lane on Via Emilia Ponente", street(pair.after, "trunk").lanes < street(pair.before, "trunk").lanes);
-check("San Felice · Marconi · Pietramellara keeps its lanes", street(pair.after, "bypass").lanes === street(pair.before, "bypass").lanes);
+const detour = pair.after.pieces.bypass.stretches;
+check("San Felice · Marconi · Pietramellara keeps its lanes away from the tracks", detour.some((part) => !part.tram) && detour.every((part) => part.tram || part.lanes === street(pair.before, "bypass").lanes));
+check("the tracks take a lane where they meet the detour", detour.some((part) => part.tram && part.lanes < street(pair.before, "bypass").lanes));
+const tail = pair.after.pieces.pilastro.stretches.at(-1);
+check("buses run past San Donnino-Casalone to Agraria", !tail.tram && tail.buses > 0 && pair.after.transitPilastroMin > pair.after.transitFieraMin);
 check("half the traffic sound is about −3 dB", Math.abs(decibels(2, 1) + 3.01) < 0.01);
 check("125 against 100 is +25%", Math.abs(percent(100, 125) - 25) < 1e-9);
 check("more green for the main street costs the cross street more", crossMinutes(90, 60) > crossMinutes(90, 40));
