@@ -685,7 +685,6 @@ td.active { color: var(--ink); font-weight: 600; }
 #legend b { font-weight: 500; }
 
 .swatch { width: 18px; height: 8px; display: block; }
-.swatch.car { background: #d6d6d6; }
 .swatch.bike { background: #5dce86; width: 14px; }
 .swatch.bus { background: #7eb3e8; width: 22px; }
 .swatch.tram { background: var(--red); width: 26px; }

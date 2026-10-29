@@ -94,7 +94,7 @@ With the Air quality **Map** switch on, in Numbers, the three air stations show 
 
 ### Tram lines, stops, and vehicles
 
-In After and Compare the open lines appear in their colours: Rossa red, Verde green, Gialla yellow, and Blu blue. Hover a Rossa stop for its name. Cars, bicycles, buses, and trams move along the Linea Rossa route at the speed the selected model gives them. **Pause** and **Play** stop and start them, and **20×**, **40×**, and **80×** set how fast the simulated clock runs.
+In After and Compare the open lines appear in their colours: Rossa red, Verde green, Gialla yellow, and Blu blue. Hover a Rossa stop for its name. Bicycles, buses, and trams move along the Linea Rossa route at the speed the selected model gives them. **Pause** and **Play** stop and start them, and **20×**, **40×**, and **80×** set how fast the simulated clock runs.
 
 ### Road tooltips
 

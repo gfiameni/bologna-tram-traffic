@@ -1430,7 +1430,7 @@ async function main() {
     const ahead = map.latLngToContainerPoint([here.lat2, here.lon2]);
     if (point.x < -20 || point.y < -20 || point.x > size.x + 20 || point.y > size.y + 20) return;
     const angle = Math.atan2(ahead.y - point.y, ahead.x - point.x);
-    const side = scale * (kind === "tram" ? 0 : kind === "bike" ? 12 * (vehicle.dir > 0 ? 1 : -1) : kind === "bus" ? 7 : 8 * (vehicle.dir > 0 ? 1 : -1));
+    const side = scale * (kind === "tram" ? 0 : kind === "bike" ? 12 * (vehicle.dir > 0 ? 1 : -1) : 7);
     ctx.save();
     ctx.translate(point.x + Math.sin(angle) * side, point.y - Math.cos(angle) * side);
     ctx.rotate(angle);
@@ -1443,12 +1443,9 @@ async function main() {
     } else if (kind === "bus") {
       ctx.fillStyle = "#1e4f86";
       ctx.fillRect(-8, -2.2, 16, 4.4);
-    } else if (kind === "bike") {
+    } else {
       ctx.fillStyle = "#1f8a4c";
       ctx.fillRect(-2.2, -0.7, 4.4, 1.4);
-    } else {
-      ctx.fillStyle = "#243040";
-      ctx.fillRect(-3.2, -1.3, 6.4, 2.6);
     }
     ctx.restore();
   }
@@ -1464,16 +1461,7 @@ async function main() {
     const vehicles = state.view === "before" ? [] : traffic.vehicles(scenarioOf());
     const zoom = map.getZoom();
     const scale = Math.max(0.45, Math.min(1, 2 ** (zoom - 15)));
-    const carStride = zoom >= 15 ? 1 : zoom >= 14 ? 3 : 10;
-    let carIndex = 0;
-    for (const vehicle of vehicles) {
-      if (vehicle.mode !== "car") continue;
-      if (carIndex++ % carStride !== 0) continue;
-      drawVehicle(vehicle, "car", size, scale);
-    }
-    for (const vehicle of vehicles) {
-      if (vehicle.mode !== "car") drawVehicle(vehicle, vehicle.mode, size, scale);
-    }
+    for (const vehicle of vehicles) drawVehicle(vehicle, vehicle.mode, size, scale);
     requestAnimationFrame(frame);
   }
 

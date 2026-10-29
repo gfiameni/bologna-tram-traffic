@@ -1,9 +1,7 @@
-/** Animated vehicles. Speeds come from whichever model is selected. */
+/** Animated buses, trams, and bicycles. Speeds come from whichever model is selected. */
 
-const CAR_PIECES = ["trunk", "bypass", "city", "fiera", "pilastro"];
-
-function chainFor(mode, branch) {
-  return mode === "car" ? ["trunk", "bypass", "city", branch] : ["trunk", branch];
+function chainFor(branch) {
+  return ["trunk", branch];
 }
 
 /** The stretch of Via San Donato past the end of the tracks, where buses still run. */
@@ -23,7 +21,7 @@ export function createTraffic(geo) {
 
   /** The tracks to Agraria end at San Donnino-Casalone; buses and bicycles ride Via San Donato to the end. */
   function polyline(mode, piece) {
-    return geo.pieces[mode === "car" || (mode !== "tram" && piece === "pilastro") ? "car" : "tram"][piece];
+    return geo.pieces[mode !== "tram" && piece === "pilastro" ? "car" : "tram"][piece];
   }
 
   function add(world, vehicle) {
@@ -37,7 +35,6 @@ export function createTraffic(geo) {
       const speeds = spec.bikeSpeeds || {};
       return speeds[vehicle.piece] || speeds.trunk || 5;
     }
-    if (vehicle.mode === "car") return spec.speeds[vehicle.piece];
     if (vehicle.piece === "trunk") {
       const tail = geo.lengths.tram.trunk - geo.lengths.car.city;
       if (vehicle.s < geo.screenS) return spec.speeds.trunk;
@@ -52,28 +49,6 @@ export function createTraffic(geo) {
     world.vehicles = [];
     world.acc = {};
     const share = { fiera: params.fieraShare, pilastro: 1 - params.fieraShare };
-
-    for (const piece of CAR_PIECES) {
-      const flow = piece === "fiera" || piece === "pilastro" ? spec.carFlow * share[piece] : spec.carFlow;
-      const speed = spec.speeds[piece];
-      const count = Math.min(420, Math.round((flow / 3600) * (geo.lengths.car[piece] / speed)));
-      for (const dir of [1, -1]) {
-        for (let i = 0; i < count; i++) {
-          const branch = piece === "fiera" || piece === "pilastro"
-            ? piece
-            : Math.random() < params.fieraShare ? "fiera" : "pilastro";
-          add(world, {
-            scenario,
-            mode: "car",
-            dir,
-            branch,
-            piece,
-            s: Math.random() * geo.lengths.car[piece],
-          });
-        }
-      }
-    }
-
     const transitMode = spec.transit;
     for (const branch of ["fiera", "pilastro"]) {
       for (const dir of [1, -1]) {
@@ -96,7 +71,7 @@ export function createTraffic(geo) {
   function seedEven(world, scenario, mode, branch, perHour, spec, params, dir) {
     if (perHour < 0.2) return;
     const spacing = 3600 / perHour;
-    const pieces = chainFor(mode, branch);
+    const pieces = chainFor(branch);
     let elapsed = (dir > 0 ? 0.2 : 0.5) * spacing;
     let guard = 0;
     while (guard++ < 80) {
@@ -161,13 +136,13 @@ export function createTraffic(geo) {
     vehicle.s = next;
     if (vehicle.tail !== undefined && vehicle.dir < 0 && vehicle.s <= vehicle.tail) return false;
     if (vehicle.dir > 0 && vehicle.s >= poly.length) {
-      const chain = chainFor(vehicle.mode, vehicle.branch);
+      const chain = chainFor(vehicle.branch);
       const index = chain.indexOf(vehicle.piece);
       if (index < 0 || index === chain.length - 1) return false;
       vehicle.piece = chain[index + 1];
       vehicle.s = 0;
     } else if (vehicle.dir < 0 && vehicle.s <= 0) {
-      const chain = chainFor(vehicle.mode, vehicle.branch);
+      const chain = chainFor(vehicle.branch);
       const index = chain.indexOf(vehicle.piece);
       if (index <= 0) return false;
       vehicle.piece = chain[index - 1];
@@ -186,29 +161,7 @@ export function createTraffic(geo) {
         const world = worlds[scenario];
         const spec = result[scenario];
         const share = { fiera: params.fieraShare, pilastro: 1 - params.fieraShare };
-        const eastCars = take(world, "car-east", spec.carFlow, dt);
-        for (let i = 0; i < eastCars; i++) {
-          add(world, {
-            scenario,
-            mode: "car",
-            dir: 1,
-            branch: Math.random() < params.fieraShare ? "fiera" : "pilastro",
-            piece: "trunk",
-            s: 0,
-          });
-        }
         for (const branch of ["fiera", "pilastro"]) {
-          const westCars = take(world, `car-west-${branch}`, spec.carFlow * share[branch], dt);
-          for (let i = 0; i < westCars; i++) {
-            add(world, {
-              scenario,
-              mode: "car",
-              dir: -1,
-              branch,
-              piece: branch,
-              s: geo.lengths.car[branch],
-            });
-          }
           const perHour = spec.vehiclesPerHour * share[branch];
           const mode = spec.transit;
           const eastTransit = take(world, `${mode}-east-${branch}`, perHour, dt);
