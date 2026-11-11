@@ -117,6 +117,15 @@ Start with cell transmission for the peaks. Volume-delay is the quickest to read
 
 **Neural surrogate.** A 16-neuron network trained on 1,050 cell-transmission runs of these streets, and of the stretches with and without tracks, across lanes and light plans. Ten inputs describe a street: cars, bicycles, buses, lanes, lights, length, protected cycling, green share, cycle, and green wave. The holdout error is 0.53 minutes per street. It does not use NVIDIA PhysicsNeMo.
 
+### Replacement bus fleet (work in progress)
+
+With the tram, lines 19 and 36 leave Porta San Felice: the 2024 timetable has them there, the 2026 service does not. `npm run build-fleet` lists their 351 weekday trips, in both directions, in `public/fleet.json`, from the Comune's 2024 table. `npm run fleet` plans the fewest vehicles that run all of them again, and the least empty driving among those plans.
+
+- **CPU plan.** Exact, with no extra packages: a minimum-cost matching of each trip to the trip that follows it. With a 5 minute layover, empty running at 22 km/h, and the most central terminal as the depot, it needs 28 vehicles for the 351 trips, against 26 trips at once at the busiest minute.
+- **cuOpt plan.** The same problem as vehicle routing with time windows, on [NVIDIA cuOpt](https://docs.nvidia.com/cuopt/). It needs an NVIDIA GPU, the `cuopt` and `cudf` packages, and Linux, for example DGX Spark. `solve` checks the cuOpt plan against the trips, and keeps the CPU plan if cuOpt is missing, fails, or needs more vehicles. The cuOpt path has not been run yet.
+- **What is assumed.** TPER does not publish depots, drivers, layover, or empty-running speed, nor how many people ride each trip. The 2026 GTFS could not be downloaded, so the 2026 side is the line list in `data/supply.json`. Treating the whole of lines 19 and 36 as replaced is also an assumption: the tram replaces them on Via Emilia only.
+- **Not built yet.** Feeder routes that meet the trams at San Donnino-Casalone, and a panel on the map.
+
 ## Disclaimer
 
 This project is an illustration built from data that public agencies already publish on the web. The numbers on the map are the output of the models in this repository. They are not a forecast, a design study, or an official figure from the Comune di Bologna, TPER, the tram project, or any other authority.
